@@ -9,7 +9,7 @@ if (NOT DEFINED PEXP_HOST)
 endif()
 
 if (${PEXP_HOST} STREQUAL ${HOST_RPi})
-    project(pico_expander_demo C)
+    project(rp2040_expander_demo C)
     set(PORTDIR "port_rpi")
     set(PORTLIBS "gpiod")
 
@@ -17,7 +17,7 @@ elseif (${PEXP_HOST} STREQUAL ${HOST_RP2040})
     set(PORTDIR "port_rp2040")
     set(PORTLIBS "pico_stdlib")
     include(${PORTDIR}/pico_sdk_import.cmake)
-    project(pico_expander_demo C CXX ASM)
+    project(rp2040_expander_demo C CXX ASM)
     pico_sdk_init()
 
 else()
@@ -27,17 +27,17 @@ endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
-set(APPLICATION "pico_expander_demo")
+set(APPLICATION "rp2040_expander_demo")
 set(APPLICATION_DIR ${CMAKE_CURRENT_LIST_DIR}/.)
 
-set(pico_expander_demo_sources
+set(rp2040_expander_demo_sources
     ${APPLICATION_DIR}/host/picoexp.c
     ${APPLICATION_DIR}/host/picoexp_dap.c
     ${APPLICATION_DIR}/${PORTDIR}/picoexp_port.c
     ${APPLICATION_DIR}/demo/picoexp_demo.c
 )
 
-add_executable(${APPLICATION} ${pico_expander_demo_sources})
+add_executable(${APPLICATION} ${rp2040_expander_demo_sources})
 
 target_include_directories(${APPLICATION} PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/${PORTDIR}/
