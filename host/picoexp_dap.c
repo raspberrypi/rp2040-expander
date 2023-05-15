@@ -1,0 +1,488 @@
+/**
+ * Copyright (c) 2023 Raspberry Pi Ltd.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+#include <picoexp_port.h>
+#include <picoexp_dap.h>
+#include <picoexp.h>
+#include <picoexp_port_api.h>
+#include <rp2040_includes.h>
+
+
+#ifdef DEBUG_SWD_ON_GPIOS
+#define DBG_GPIO_INIT()             swdbb->dbg_gpio_init()
+#define DBG_GPIO_SET(p, s)          swdbb->dbg_gpio_set((p), (s))
+#else
+#define DBG_GPIO_INIT()             ((void)(0))
+#define DBG_GPIO_SET(p, s)          ((void)(0))
+#endif
+
+ // Retries are needed if the DAP replies with a WAIT status
+#define NUM_DAP_RETRIES             4
+
+#define DAP_STATUS_OK               (1 << 0)
+#define DAP_STATUS_WAIT             (1 << 1)
+#define DAP_STATUS_FAULT            (1 << 2)
+
+#define DLPIDR_TARGETID_0           0x01002927ul
+#define DLPIDR_TARGETID_RESCUE_DP   0xf1002927ul
+
+#define EXPECTED_DPIDR_0            0x0BC12477ul
+#define EXPECTED_DPIDR_RESCUE_DP    0x10212927ul
+
+#define NUM_ELES(a)                 (sizeof(a) / sizeof(*(a)))
+
+typedef struct {
+    uint8_t rd_wr;
+    uint8_t dap_reg;
+    uint32_t cdata;
+} dap_reg_rd_wr_seq_t;
+
+typedef struct {
+    uint32_t last_csw;
+    uint32_t last_tar;
+} dap_reg_cache_t;
+
+// store a little context to avoid unnecessary transactions
+static dap_reg_cache_t dap_reg_cache;
+
+// pointer to the bit-bashed SWD 'helper functions' function pointers which are per-port.
+static const swdbb_helpers_t *swdbb;
+
+// sequences of bits used to reset and control the SWD at 'line level'
+static const uint8_t bit_seq_reset_to_dormant[] = {
+    // reset sequence (56 > 50 :)
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    // enter domant state
+    0xbc, 0xe3,
+    // reset sequence  54 + two idle
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f
+};
+#define NUM_SEQ_RESET_TO_DORMANT_BITS   128
+
+static const uint8_t bit_seq_dormant_to_swd[] = {
+    // Resync the LFSR (which is 7 bits, can't produce 8 1s)
+    0xff,
+    // A 0-bit, then 127 bits of LFSR output
+    0x92, 0xf3, 0x09, 0x62,
+    0x95, 0x2d, 0x85, 0x86,
+    0xe9, 0xaf, 0xdd, 0xe3,
+    0xa2, 0x0e, 0xbc, 0x19,
+    // Four zero-bits, 8 bits of select sequence
+    0xa0, 0x01
+    // Total 148 bits (not the last 4!)
+};
+#define NUM_SEQ_DORMANT_TO_SWD_BITS     148
+
+static const uint8_t bit_seq_line_reset[] = {
+    // 50 * 1s and 2 * idle 0s.
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03
+};
+#define NUM_SEQ_LINE_RESET_BITS         52
+
+static const dap_reg_rd_wr_seq_t use_rescue_dp_to_reset_chip[] = {
+
+    {DAP_WR, DP_REG_ABORT,  0x1Eul},    // clean up any inital errors
+    {DAP_WR, DP_REG_SELECT, 0},         // Init bank select, undefined before
+
+    {DAP_RD, DP_REG_CTRL_STAT, 0},      // Read status
+
+    // set CDBGPWRUPREQ which performs a chip reset in the rescue DP
+    {DAP_WR, DP_REG_CTRL_STAT, (1ul << 28)},
+
+    {DAP_RD, DP_REG_CTRL_STAT, 0},      // Read status
+    {DAP_WR, DP_REG_CTRL_STAT, (0ul << 28)}     // clear reset
+};
+
+// Note: The reads in this are for debug (when enabled) and some are
+// also required for correct operation, such as the AP_REG_IDR read.
+static const dap_reg_rd_wr_seq_t setup_dap_instance_0[] = {
+
+    {DAP_RD, DP_REG_DPIDR,  0},         // Read Device ID register
+
+    {DAP_WR, DP_REG_ABORT,  0x1Eul},    // clean up any inital errors
+    {DAP_WR, DP_REG_SELECT, 0},         // Init bank select, undefined before
+    {DAP_RD, DP_REG_DPIDR,  0},         // Read Device ID register
+
+    {DAP_WR, DP_REG_CTRL_STAT, 0x50000020ul},   // power up AP
+    {DAP_WR, DP_REG_CTRL_STAT, 0x50000000ul},
+    {DAP_RD, DP_REG_CTRL_STAT, 0},      // Read status
+
+    {DAP_WR, DP_REG_SELECT, DP_BANK_DLPIDR},    // Read Device instance register
+    {DAP_RD, DP_REG_DLPIDR, 0},
+
+    {DAP_WR, DP_REG_SELECT, 0x000000F0ul},  // AP bank to access the AP IDR
+    {DAP_RD, AP_REG_IDR,    0},  // Dummy read
+    {DAP_RD, DP_REG_RDBUF,  0},  // AP ID
+
+    {DAP_WR, DP_REG_SELECT, 0}  // Bank selects back to 0
+};
+
+
+static void put_bits(const uint8_t *txb, int n_bits) {
+    uint8_t shifter;
+
+    swdbb->set_swdio_as_output(1);
+
+    for (unsigned int i = 0; i < n_bits; i++) {
+        if (i % 8 == 0) {
+            shifter = txb[i / 8];
+        } else {
+            shifter >>= 1;
+        }
+
+        swdbb->set_swdio(shifter & 1u);
+        swdbb->delay_half_clock();
+        swdbb->set_swclk(1);
+        swdbb->delay_half_clock();
+        swdbb->set_swclk(0);
+    }
+}
+
+
+static void get_bits(uint8_t *rxb, int n_bits) {
+    uint8_t shifter;
+
+    swdbb->set_swdio_as_output(0);
+
+    for (unsigned int i = 0; i < n_bits; i++) {
+        DBG_GPIO_SET(DBG_GPIO_RXED, 0);
+
+        swdbb->delay_half_clock();
+        uint8_t sample = swdbb->get_swdio();
+        swdbb->set_swclk(1);
+
+        if (sample) {
+            DBG_GPIO_SET(DBG_GPIO_RXED, 1);
+        } else {
+            DBG_GPIO_SET(DBG_GPIO_RXED, 0);
+        }
+
+        swdbb->delay_half_clock();
+        swdbb->set_swclk(0);
+
+        shifter >>= 1;
+        if (sample) {
+            shifter |= (1 << 7);
+        }
+        if (i % 8 == 7)
+            rxb[i / 8] = shifter;
+    }
+
+    if (n_bits % 8 != 0) {
+        rxb[n_bits / 8] = shifter >> (8 - n_bits % 8);
+    }
+
+    DBG_GPIO_SET(DBG_GPIO_RXED, 0);
+}
+
+
+static void hiz_clocks(int n_bits) {
+
+    swdbb->set_swdio_as_output(0);
+
+    for (unsigned int i = 0; i < n_bits; i++) {
+        swdbb->delay_half_clock();
+        swdbb->set_swclk(1);
+        swdbb->delay_half_clock();
+        swdbb->set_swclk(0);
+    }
+}
+
+
+static void send_dap_header(uint8_t rnw_dap_and_reg) {
+
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
+
+    uint8_t parity =
+        ((rnw_dap_and_reg >> 1) & 1) ^
+        ((rnw_dap_and_reg >> 2) & 1) ^
+        ((rnw_dap_and_reg >> 3) & 1) ^
+        ((rnw_dap_and_reg >> 4) & 1);
+
+    uint8_t header =
+        1u << 0             | // Start
+        rnw_dap_and_reg     | // APnDP, RnW, reg addr: bits 1 to 4
+        parity << 5         | // Parity
+        0u << 6             | // Stop
+        1u << 7;              // Park
+
+    put_bits(&header, 8);
+
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+
+    hiz_clocks(1);  // always send a turnaround after a header
+}
+
+
+static pexp_err_t send_dap_header_read_status(uint8_t rnw_dap_and_reg) {
+
+    uint8_t i;
+    uint8_t status;
+
+    for (i = 0; i < NUM_DAP_RETRIES; i++) {
+
+        send_dap_header(rnw_dap_and_reg);
+
+        get_bits(&status, 3);
+
+        switch (status) {
+            case DAP_STATUS_OK:
+                return PEXP_OK;
+                break;
+
+            // FIXME HERE TODO The needs to be explicitly tested, I've not yet seen it!
+            case DAP_STATUS_WAIT:
+                hiz_clocks(1);
+                continue;
+                break;
+
+            case DAP_STATUS_FAULT:
+                hiz_clocks(1);
+                return PEXP_ERR_DAP_FAULT;
+                break;
+
+            default:
+                hiz_clocks(1);
+                // Guess at not connected
+                return PEXP_ERR_DAP_DISCONNECTED;
+                break;
+        }
+    }
+
+    return PEXP_ERR_DAP_TIMEOUT;
+}
+
+
+static void send_dap_word(uint32_t dapw) {
+
+    uint8_t parity = 0;
+
+    for (unsigned int i = 0; i < 32; i++) {
+        parity ^= (dapw >> i) & 0x1;
+    }
+
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
+    put_bits((uint8_t *)&dapw, 32);
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+
+    put_bits(&parity, 1);
+}
+
+
+static pexp_err_t read_dap_word(uint32_t *pdata) {
+    uint32_t parity;
+    uint32_t mask;
+
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
+    get_bits((uint8_t *)pdata, 32);
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+
+    // calculate parity
+    for (parity = 0ul, mask = 1ul; mask != 0; mask <<= 1) {
+        if (mask & *pdata) {
+            parity ^= 1;
+        }
+    }
+
+    // read parity from target
+    get_bits((uint8_t *)&mask, 1);
+
+    if (parity != mask) {
+        return PEXP_ERR_DAP_PARITY;
+    }
+
+    return PEXP_OK;
+}
+
+
+static void send_targetselect(uint32_t targetsel_id) {
+
+    send_dap_header(DAP_WR | DP_REG_TARGETSEL);
+
+    // There is no useful response to TARGETSEL, ignore the
+    // 'status' and send a turnaround since sending more
+    hiz_clocks(3 + 1);
+
+    send_dap_word(targetsel_id);
+}
+
+static void send_reset_to_dormant(void) {
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
+    put_bits(bit_seq_reset_to_dormant, NUM_SEQ_RESET_TO_DORMANT_BITS);
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+}
+
+static void send_dormant_to_swd(void) {
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
+    put_bits(bit_seq_dormant_to_swd, NUM_SEQ_DORMANT_TO_SWD_BITS);
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+}
+
+static void swd_line_reset(void) {
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+    put_bits(bit_seq_line_reset, NUM_SEQ_LINE_RESET_BITS);
+    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+}
+
+
+static pexp_err_t table_driven_dap_reg_setup(const dap_reg_rd_wr_seq_t *dap_rd_wr_seq, uint32_t table_length) {
+
+    pexp_err_t pexp_err = PEXP_OK;
+    uint32_t dummy;
+
+    for (unsigned int i = 0; i < table_length && pexp_err == PEXP_OK; i++) {
+
+        if (dap_rd_wr_seq[i].rd_wr == DAP_WR) {
+            pexp_err = dap_write(dap_rd_wr_seq[i].dap_reg, dap_rd_wr_seq[i].cdata);
+        } else {
+            pexp_err = dap_read(dap_rd_wr_seq[i].dap_reg, &dummy);
+        }
+    }
+
+    return pexp_err;
+}
+
+
+static void reset_register_caching(void) {
+
+    dap_reg_cache.last_csw = (uint32_t) -1;
+    dap_reg_cache.last_tar = (uint32_t) -1;
+}
+
+
+static pexp_err_t connect_to_a_dp_instance(uint32_t target_id, uint32_t expected_dpidr) {
+
+    pexp_err_t pexp_err;
+    uint32_t read_dpidr;
+
+    reset_register_caching();  // caching is only one DP instance deep
+
+    send_reset_to_dormant();
+    send_dormant_to_swd();
+
+    swd_line_reset();  // always a line reset before a target select
+
+    send_targetselect(target_id);
+
+    pexp_err = dap_read(DP_REG_DPIDR, &read_dpidr);
+
+    if ((pexp_err == PEXP_OK) && (read_dpidr != expected_dpidr)) {
+        pexp_err = PEXP_ERR_DAP_TARGET;
+    }
+
+    return pexp_err;
+}
+
+//----------------------------------------------------------------------------
+
+// Module API
+
+pexp_err_t dap_if_init(void) {
+
+    swdbb = port_get_swdbb_helpers();
+
+    DBG_GPIO_INIT();  // MUST be after get helpers
+
+    return swdbb->init_swd_gpios();
+}
+
+
+pexp_err_t dap_reset_chip_halt_cpus(void) {
+
+    pexp_err_t pexp_err;
+
+    pexp_err = connect_to_a_dp_instance(DLPIDR_TARGETID_RESCUE_DP, EXPECTED_DPIDR_RESCUE_DP);
+
+    if (pexp_err == PEXP_OK) {
+        pexp_err = table_driven_dap_reg_setup(use_rescue_dp_to_reset_chip, NUM_ELES(use_rescue_dp_to_reset_chip));
+    }
+
+    return pexp_err;
+}
+
+
+pexp_err_t dap_initial_chip_config(void) {
+
+    pexp_err_t pexp_err;
+
+    pexp_err = connect_to_a_dp_instance(DLPIDR_TARGETID_0, EXPECTED_DPIDR_0);
+
+    if (pexp_err == PEXP_OK) {
+        pexp_err = table_driven_dap_reg_setup(setup_dap_instance_0, NUM_ELES(setup_dap_instance_0));
+    }
+
+    if (pexp_err == PEXP_OK) {
+        // This can't be done until after the above
+        // The top 16-bits are a magic unlock pattern, the bottom 2 bits halt the CPU
+        pexp_err = pexp_write32(DCB_DHCSR,  0xA05F0003ul);
+    }
+
+    return pexp_err;
+}
+
+
+pexp_err_t dap_set_target_rd_wr_address(uint32_t address, auto_inc_t inc_mode) {
+
+    uint32_t new_csw;
+    pexp_err_t pexp_err = PEXP_OK;
+
+  //pexp_err = dap_write(DP_REG_SELECT, 0);  // NOTE: We leave the Bank selects at 0
+
+    if (inc_mode == NO_AUTO_INC) {
+        new_csw = 0xA2000002ul;   // Word read, no inc
+    } else {
+        new_csw = 0xA2000012ul;   // Word read, inc +1 word
+    }
+
+    if (dap_reg_cache.last_csw != new_csw) {
+        pexp_err = dap_write(AP_REG_CSW, new_csw);
+        dap_reg_cache.last_csw = new_csw;
+    }
+
+    if (pexp_err == PEXP_OK) {
+        if (dap_reg_cache.last_tar != address) {
+            pexp_err = dap_write(AP_REG_TAR, address);  // set address
+            dap_reg_cache.last_tar = address;
+        }
+    }
+
+    return pexp_err;
+}
+
+
+// SWD transactions - *everything* is built on top of these
+pexp_err_t dap_read(uint8_t dap_and_reg, uint32_t *pdata) {
+
+    pexp_err_t pexp_err = send_dap_header_read_status(DAP_RD | dap_and_reg);
+
+    if (pexp_err != PEXP_OK) {
+        *pdata = 0;
+        return pexp_err;
+    }
+
+    pexp_err = read_dap_word(pdata);
+
+    // Turnaround for next packet header to be sent
+    hiz_clocks(1);
+
+    return pexp_err;
+}
+
+
+pexp_err_t dap_write(uint8_t dap_and_reg, uint32_t data) {
+
+    pexp_err_t pexp_err = send_dap_header_read_status(DAP_WR | dap_and_reg);
+
+    if (pexp_err != PEXP_OK) {
+        return pexp_err;
+    }
+
+    hiz_clocks(1);
+
+    send_dap_word(data);
+
+    return PEXP_OK;
+}
