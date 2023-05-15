@@ -68,7 +68,7 @@ int main() {
     stdio_init_all();
 #endif
 
-    printf("\npico_expander_demo, built: %s %s\n\n", __DATE__, __TIME__);
+    printf("\nrp2040_expander_demo, built: %s %s\n\n", __DATE__, __TIME__);
 
     uint32_t step = 0;
 

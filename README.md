@@ -1,17 +1,17 @@
-# pico-expander
+# rp2040-expander
 
-This repo contains a self-contained demonstration of the pico-expander system.
+This repo contains a self-contained demonstration of the rp2040-expander system.
 
 ## Introduction
 
-'pico-expander' is a minimal software environment which utilizes a Raspberry
+'rp2040-expander' is a minimal software environment which utilizes a Raspberry
 Pi RP2040 microcontroller as a port-expander peripheral for a host processor.
 
 The RP2040 has no attached SPI Flash, may not execute any software and is
 unlikely to require a quartz crystal (subject to the intended use, please
 see: LINK whitepaper here).
 
-The pico-expander is controlled by the host using the RP2040's 'Serial Wire
+The rp2040-expander is controlled by the host using the RP2040's 'Serial Wire
 Debug' interface over which 'Debug Access Port' transactions are used to
 control the RP2040 internals.
 
@@ -25,7 +25,7 @@ The `/port` directory contains code that needs to be refactored to provide the
 requied GPIO manipulations to implement the host side SWD interface.
 
 The `/demo` directory contains a test module that exercises some of the
-pico-expander's API.
+rp2040-expander's API.
 
 ## SWD interface
 
