@@ -194,7 +194,6 @@ static rpexp_err_t timer_enable(void) {
 static rpexp_err_t get_timespec_and_tickcount(rosc_time_n_count_t *tm_tk) {
 
     tm_tk->time_us = port_get_time_us_64();
-
     return rpexp_time_get_ticks64(&tm_tk->tick_count);
 }
 
@@ -247,6 +246,68 @@ static rpexp_err_t set_gpio_input_enabled(uint32_t gpio, bool enable) {
     } else {
         return rpexp_hw_clear_bits(_reg(padsbank0_hw->io[gpio]), PADS_BANK0_GPIO0_IE_BITS);
     }
+}
+
+
+static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_postdiv_clock_hz,  uint32_t *measured_rosc_postdiv_clock_hz) {
+
+    uint32_t freq_bits, last_bits_setting;
+    uint32_t freq_delta, last_delta;
+
+    // Firstly, trim ROSC fully _down_ in frequency
+    rpexp_err_t rpexp_err = rpexp_rosc_clear_all_freq_ab_bits();
+
+    freq_bits = last_bits_setting = 0;
+
+    while (rpexp_err == RPEXP_OK) {
+
+        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+
+        if (rpexp_err == RPEXP_OK) {
+            if (*measured_rosc_postdiv_clock_hz > target_rosc_postdiv_clock_hz) {
+                freq_delta = *measured_rosc_postdiv_clock_hz - target_rosc_postdiv_clock_hz;
+            } else {
+                freq_delta = target_rosc_postdiv_clock_hz - *measured_rosc_postdiv_clock_hz;
+            }
+
+            if (freq_bits && freq_delta > last_delta) {
+                break;
+            }
+
+            last_delta = freq_delta;
+            last_bits_setting = freq_bits;
+
+            freq_bits = rpexp_rosc_inc_freq_ab_bits(freq_bits);
+            rpexp_err = rpexp_rosc_set_freq_ab_bits(freq_bits);
+        }
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_rosc_set_freq_ab_bits(last_bits_setting);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+    }
+
+    return rpexp_err;
+}
+
+
+static rpexp_err_t private_rosc_set_freq_ab_bits(uint32_t freq32) {
+
+    rpexp_err_t rpexp_err = rpexp_write32(_reg(rosc_hw->freqa), (ROSC_FREQA_PASSWD_VALUE_PASS << ROSC_FREQA_PASSWD_LSB) | (freq32 & 0xfffful));
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(rosc_hw->freqb), (ROSC_FREQB_PASSWD_VALUE_PASS << ROSC_FREQB_PASSWD_LSB) | (freq32 >> 16ul));
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        // REstart timing for ROSC frequency measurement
+        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
+    }
+
+    return RPEXP_OK;
 }
 
 //----------------------------------------------------------------------------
@@ -895,7 +956,12 @@ rpexp_err_t rpexp_rosc_set_div(uint32_t rosc_div) {
         rosc_div = 0;
     }
 
-    return rpexp_write32(_reg(rosc_hw->div), (rosc_div + ROSC_DIV_VALUE_PASS));
+    rpexp_err_t rpexp_err = rpexp_write32(_reg(rosc_hw->div), (rosc_div + ROSC_DIV_VALUE_PASS));
+
+    if (rpexp_err == RPEXP_OK) {
+        // REstart timing for ROSC frequency measurement
+        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
+    }
 }
 
 
@@ -938,13 +1004,36 @@ rpexp_err_t rpexp_rosc_get_freq_ab_bits(uint32_t *pfreq) {
 
 rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq32) {
 
-    rpexp_err_t rpexp_err = rpexp_write32(_reg(rosc_hw->freqa), (ROSC_FREQA_PASSWD_VALUE_PASS << ROSC_FREQA_PASSWD_LSB) | (freq32 & 0xfffful));
+    rpexp_err_t rpexp_err = private_rosc_set_freq_ab_bits(freq32);
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_write32(_reg(rosc_hw->freqb), (ROSC_FREQB_PASSWD_VALUE_PASS << ROSC_FREQB_PASSWD_LSB) | (freq32 >> 16ul));
+        // REstart timing for ROSC frequency measurement
+        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
     }
 
     return RPEXP_OK;
+}
+
+
+rpexp_err_t rpexp_rosc_clear_all_freq_ab_bits(void) {
+
+    uint32_t freq_bits;
+
+    rpexp_err_t rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
+
+    // zero the freq a/b bits, one but at a time to avoid glitches
+    while (rpexp_err == RPEXP_OK && freq_bits) {
+
+        freq_bits = rpexp_rosc_dec_freq_ab_bits(freq_bits);
+        rpexp_err = private_rosc_set_freq_ab_bits(freq_bits);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        // REstart timing for ROSC frequency measurement
+        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
+    }
+
+    return rpexp_err;
 }
 
 
@@ -1031,53 +1120,6 @@ rpexp_err_t rpexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32
 }
 
 
-static rpexp_err_t rosc_trim(uint32_t target_rosc_postdiv_clock_hz,  uint32_t *measured_rosc_postdiv_clock_hz) {
-
-    rpexp_err_t rpexp_err = RPEXP_OK;
-    uint32_t freq_bits, last_bits_setting;
-    uint32_t freq_delta;
-    uint32_t last_delta = (uint32_t) -1; // set improbably bad "last" delta
-
-    freq_bits = 0;
-
-    do {
-        rpexp_err = rpexp_rosc_set_freq_ab_bits(freq_bits);
-
-        if (rpexp_err == RPEXP_OK) {
-            last_bits_setting = freq_bits;
-            rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
-        }
-
-        if (rpexp_err == RPEXP_OK) {
-            if (*measured_rosc_postdiv_clock_hz > target_rosc_postdiv_clock_hz) {
-                freq_delta = *measured_rosc_postdiv_clock_hz - target_rosc_postdiv_clock_hz;
-            } else {
-                freq_delta = target_rosc_postdiv_clock_hz - *measured_rosc_postdiv_clock_hz;
-            }
-
-            if (freq_delta >= last_delta) {
-                break;
-            }
-
-            last_delta = freq_delta;
-
-            freq_bits = rpexp_rosc_inc_freq_ab_bits(freq_bits);
-        }
-
-    } while(1);
-
-    if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_rosc_set_freq_ab_bits(last_bits_setting);
-    }
-
-    if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
-    }
-
-    return rpexp_err;
-}
-
-
 rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdiv_clock_hz, uint32_t *measured_rosc_postdiv_clock_hz) {
 
     uint32_t freq_bits;
@@ -1086,12 +1128,8 @@ rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdi
     uint32_t rosc_freq_hz;
     uint32_t new_rosc_freq_hz;
 
-    rpexp_err_t rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
-
-    if (rpexp_err == RPEXP_OK && freq_bits) {
-        // Firstly, if ROSC has been trimmed _up_ at all - trim it fully down
-        rpexp_err = rpexp_rosc_set_freq_ab_bits(0);
-    }
+    // Firstly, trim ROSC fully _down_ in frequency
+    rpexp_err_t rpexp_err = rpexp_rosc_clear_all_freq_ab_bits();
 
     if (rpexp_err == RPEXP_OK) {
         rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
@@ -1116,8 +1154,10 @@ rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdi
 
             new_rosc_freq_hz = target_rosc_postdiv_clock_hz * new_div;
 
-            // this could be smarter for low target freqs (~10 MHz) but will [still]
-            // work optimally for higher target frquencies (such as 48 MHz).
+            // this could be smarter for low target freqs, e.g. 10 MHz, to allow "centreing"
+            // the freq a/b but settings to more easily allow for trimming but it will [still]
+            // work optimally for higher target frquencies, such as 48 MHz, where there
+            // is likely only one possible divider ratio setting anyway.
             if (new_rosc_freq_hz <= ROSC_MAX_FREQ) {
                 break;
             }
@@ -1127,7 +1167,7 @@ rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdi
     }
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rosc_trim(target_rosc_postdiv_clock_hz, measured_rosc_postdiv_clock_hz);
+        rpexp_err = rosc_frequency_trim_up(target_rosc_postdiv_clock_hz, measured_rosc_postdiv_clock_hz);
     }
 
     return rpexp_err;

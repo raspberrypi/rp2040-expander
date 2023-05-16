@@ -14,7 +14,7 @@
 #define TICK_GENERATOR_CYCLES   2
 
 // This affects the frequency measurement resolution 
-#define MIN_ROSC_FREQ_SAMPLE_TIME_US 2500
+#define MIN_ROSC_FREQ_SAMPLE_TIME_US    10000
 
 
 // Return error status codes
@@ -677,6 +677,9 @@ rpexp_err_t rpexp_rosc_get_freq_ab_bits(uint32_t *pfreq);
 
 
 rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq);
+
+
+rpexp_err_t rpexp_rosc_clear_all_freq_ab_bits(void);
 
 
 uint32_t rpexp_rosc_inc_freq_ab_bits(uint32_t freq32);

@@ -97,11 +97,11 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 5;
-    rpexp_err = rpexp_clock_gpio_init(25, GPIO_CLKOUT_CLK_REF, 500000);
+    rpexp_err = rpexp_clock_gpio_init(25, GPIO_CLKOUT_CLK_REF, 5000000);
     if (rpexp_err) goto end_tests;
 
     step = 6;
-    rpexp_err = rpexp_clock_gpio_init(21, GPIO_CLKOUT_CLK_REF, 1);
+    rpexp_err = rpexp_clock_gpio_init(21, GPIO_CLKOUT_CLK_REF, 10);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
@@ -153,20 +153,13 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 20;  // get ROSC freq measurement
-
     rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     if (rpexp_err) goto end_tests;
-
-    rpexp_err = rpexp_rosc_get_div(&rosc_div);
-    if (rpexp_err) goto end_tests;
-
-    printf("ROSC clock freq (Hz): %" PRId32 "\n", rosc_postdiv_freq_hz);
-    printf("ROSC divider setting: %" PRId32 "\n", rosc_div);
+    printf("Initi ROSC system clock freq (Hz): %" PRId32 "\n", rosc_postdiv_freq_hz);
 
     //------------------------------------------------------------------------
 
     step = 25;
-
     rpexp_err = rpexp_rosc_set_freq_ab_bits(0);
     if (rpexp_err) goto end_tests;
 
