@@ -11,14 +11,6 @@
 #include <rp2040_includes.h>
 
 
-#ifdef DEBUG_SWD_ON_GPIOS
-#define DBG_GPIO_INIT()             swdbb->dbg_gpio_init()
-#define DBG_GPIO_SET(p, s)          swdbb->dbg_gpio_set((p), (s))
-#else
-#define DBG_GPIO_INIT()             ((void)(0))
-#define DBG_GPIO_SET(p, s)          ((void)(0))
-#endif
-
  // Retries are needed if the DAP replies with a WAIT status
 #define NUM_DAP_RETRIES             4
 
@@ -47,9 +39,6 @@ typedef struct {
 
 // store a little context to avoid unnecessary transactions
 static dap_reg_cache_t dap_reg_cache;
-
-// pointer to the bit-bashed SWD 'helper functions' function pointers which are per-port.
-static const swdbb_helpers_t *swdbb;
 
 // sequences of bits used to reset and control the SWD at 'line level'
 static const uint8_t bit_seq_reset_to_dormant[] = {
@@ -121,80 +110,7 @@ static const dap_reg_rd_wr_seq_t setup_dap_instance_0[] = {
 };
 
 
-static void put_bits(const uint8_t *txb, int n_bits) {
-    uint8_t shifter;
-
-    swdbb->set_swdio_as_output(1);
-
-    for (unsigned int i = 0; i < n_bits; i++) {
-        if (i % 8 == 0) {
-            shifter = txb[i / 8];
-        } else {
-            shifter >>= 1;
-        }
-
-        swdbb->set_swdio(shifter & 1u);
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(1);
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(0);
-    }
-}
-
-
-static void get_bits(uint8_t *rxb, int n_bits) {
-    uint8_t shifter;
-
-    swdbb->set_swdio_as_output(0);
-
-    for (unsigned int i = 0; i < n_bits; i++) {
-        DBG_GPIO_SET(DBG_GPIO_RXED, 0);
-
-        swdbb->delay_half_clock();
-        uint8_t sample = swdbb->get_swdio();
-        swdbb->set_swclk(1);
-
-        if (sample) {
-            DBG_GPIO_SET(DBG_GPIO_RXED, 1);
-        } else {
-            DBG_GPIO_SET(DBG_GPIO_RXED, 0);
-        }
-
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(0);
-
-        shifter >>= 1;
-        if (sample) {
-            shifter |= (1 << 7);
-        }
-        if (i % 8 == 7)
-            rxb[i / 8] = shifter;
-    }
-
-    if (n_bits % 8 != 0) {
-        rxb[n_bits / 8] = shifter >> (8 - n_bits % 8);
-    }
-
-    DBG_GPIO_SET(DBG_GPIO_RXED, 0);
-}
-
-
-static void hiz_clocks(int n_bits) {
-
-    swdbb->set_swdio_as_output(0);
-
-    for (unsigned int i = 0; i < n_bits; i++) {
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(1);
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(0);
-    }
-}
-
-
 static void send_dap_header(uint8_t rnw_dap_and_reg) {
-
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
 
     uint8_t parity =
         ((rnw_dap_and_reg >> 1) & 1) ^
@@ -209,11 +125,9 @@ static void send_dap_header(uint8_t rnw_dap_and_reg) {
         0u << 6             | // Stop
         1u << 7;              // Park
 
-    put_bits(&header, 8);
+    port_swd_put_bits(&header, 8);
 
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
-
-    hiz_clocks(1);  // always send a turnaround after a header
+    port_swd_hiz_clocks(1);  // always send a turnaround after a header
 }
 
 
@@ -226,7 +140,7 @@ static rpexp_err_t send_dap_header_read_status(uint8_t rnw_dap_and_reg) {
 
         send_dap_header(rnw_dap_and_reg);
 
-        get_bits(&status, 3);
+        port_swd_get_bits(&status, 3);
 
         switch (status) {
             case DAP_STATUS_OK:
@@ -235,17 +149,17 @@ static rpexp_err_t send_dap_header_read_status(uint8_t rnw_dap_and_reg) {
 
             // FIXME HERE TODO The needs to be explicitly tested, I've not yet seen it!
             case DAP_STATUS_WAIT:
-                hiz_clocks(1);
+                port_swd_hiz_clocks(1);
                 continue;
                 break;
 
             case DAP_STATUS_FAULT:
-                hiz_clocks(1);
+                port_swd_hiz_clocks(1);
                 return RPEXP_ERR_DAP_FAULT;
                 break;
 
             default:
-                hiz_clocks(1);
+                port_swd_hiz_clocks(1);
                 // Guess at not connected
                 return RPEXP_ERR_DAP_DISCONNECTED;
                 break;
@@ -264,11 +178,9 @@ static void send_dap_word(uint32_t dapw) {
         parity ^= (dapw >> i) & 0x1;
     }
 
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
-    put_bits((uint8_t *)&dapw, 32);
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+    port_swd_put_bits((uint8_t *)&dapw, 32);
 
-    put_bits(&parity, 1);
+    port_swd_put_bits(&parity, 1);
 }
 
 
@@ -276,9 +188,7 @@ static rpexp_err_t read_dap_word(uint32_t *pdata) {
     uint32_t parity;
     uint32_t mask;
 
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
-    get_bits((uint8_t *)pdata, 32);
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+    port_swd_get_bits((uint8_t *)pdata, 32);
 
     // calculate parity
     for (parity = 0ul, mask = 1ul; mask != 0; mask <<= 1) {
@@ -288,7 +198,7 @@ static rpexp_err_t read_dap_word(uint32_t *pdata) {
     }
 
     // read parity from target
-    get_bits((uint8_t *)&mask, 1);
+    port_swd_get_bits((uint8_t *)&mask, 1);
 
     if (parity != mask) {
         return RPEXP_ERR_DAP_PARITY;
@@ -304,27 +214,21 @@ static void send_targetselect(uint32_t targetsel_id) {
 
     // There is no useful response to TARGETSEL, ignore the
     // 'status' and send a turnaround since sending more
-    hiz_clocks(3 + 1);
+    port_swd_hiz_clocks(3 + 1);
 
     send_dap_word(targetsel_id);
 }
 
 static void send_reset_to_dormant(void) {
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
-    put_bits(bit_seq_reset_to_dormant, NUM_SEQ_RESET_TO_DORMANT_BITS);
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+    port_swd_put_bits(bit_seq_reset_to_dormant, NUM_SEQ_RESET_TO_DORMANT_BITS);
 }
 
 static void send_dormant_to_swd(void) {
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 0);
-    put_bits(bit_seq_dormant_to_swd, NUM_SEQ_DORMANT_TO_SWD_BITS);
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+    port_swd_put_bits(bit_seq_dormant_to_swd, NUM_SEQ_DORMANT_TO_SWD_BITS);
 }
 
 static void swd_line_reset(void) {
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
-    put_bits(bit_seq_line_reset, NUM_SEQ_LINE_RESET_BITS);
-    DBG_GPIO_SET(DBG_GPIO_SPI_CSN, 1);
+    port_swd_put_bits(bit_seq_line_reset, NUM_SEQ_LINE_RESET_BITS);
 }
 
 
@@ -382,11 +286,7 @@ static rpexp_err_t connect_to_a_dp_instance(uint32_t target_id, uint32_t expecte
 
 rpexp_err_t dap_if_init(void) {
 
-    swdbb = port_get_swdbb_helpers();
-
-    DBG_GPIO_INIT();  // MUST be after get helpers
-
-    return swdbb->init_swd_gpios();
+    return port_swd_init_gpios();
 }
 
 
@@ -466,7 +366,7 @@ rpexp_err_t dap_read(uint8_t dap_and_reg, uint32_t *pdata) {
     rpexp_err = read_dap_word(pdata);
 
     // Turnaround for next packet header to be sent
-    hiz_clocks(1);
+    port_swd_hiz_clocks(1);
 
     return rpexp_err;
 }
@@ -480,7 +380,7 @@ rpexp_err_t dap_write(uint8_t dap_and_reg, uint32_t data) {
         return rpexp_err;
     }
 
-    hiz_clocks(1);
+    port_swd_hiz_clocks(1);
 
     send_dap_word(data);
 

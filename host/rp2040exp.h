@@ -8,6 +8,8 @@
 #define _RP2040EXP_H_
 
 
+#define LOCAL_SWDS
+
 // Please consult documentation regarding this setting
 #define SWD_CLOCK_RATE_KHZ      500
 

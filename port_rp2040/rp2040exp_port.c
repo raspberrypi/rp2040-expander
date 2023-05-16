@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * Helper functions for an RP2040 host
+ * Port specific functions for an RP2040 host
  */
 
 #include "pico/stdlib.h"
@@ -17,20 +17,6 @@
 #define HALF_CLOCK_CYCLE_US     ((1000 / SWD_CLOCK_RATE_KHZ) / 2)
 static_assert(HALF_CLOCK_CYCLE_US != 0, "SWD clock rate is too fast for: sleep_us()");
 
-
-// private helper functions for an RP2040 host (using the Pico-SDK)
-static rpexp_err_t init_swd_gpios(void) {
-    gpio_init(PIN_SWCLK);
-    gpio_init(PIN_SWDIO);
-
-    gpio_put(PIN_SWCLK, 0);
-    gpio_put(PIN_SWDIO, 0);
-
-    gpio_set_dir(PIN_SWCLK, GPIO_OUT);
-    gpio_set_dir(PIN_SWDIO, GPIO_OUT);
-
-    return RPEXP_OK;
-}   
 
 static void inline set_swdio_as_output(bool out) {
     if (out) {
@@ -60,57 +46,87 @@ static bool inline get_swdio(void) {
     return gpio_get(PIN_SWDIO);
 }
 
-static void inline delay_half_clock(void) {
-  //sleep_us(HALF_CLOCK_CYCLE_US);
-}
-
-
-#ifdef DEBUG_SWD_ON_GPIOS  // debug GPIO helpers
-static void inline dbg_gpio_init(void) {
-
-    gpio_init(DBG_GPIO_SPI_CSN);
-    gpio_init(DBG_GPIO_RXED);
-
-    gpio_put(DBG_GPIO_SPI_CSN, 1);
-    gpio_put(DBG_GPIO_RXED, 0);
-
-    gpio_set_dir(DBG_GPIO_SPI_CSN, GPIO_OUT);
-    gpio_set_dir(DBG_GPIO_RXED, GPIO_OUT);
-}
-
-static void inline dbg_gpio_set(bool pin, bool high) {
-    if (high) {
-        gpio_put(pin, 1);
-    } else {
-        gpio_put(pin, 0);
-    }
-}
-#endif  // DEBUG_SWD_ON_GPIOS
-
-//----------------------------------------------------------------------------
-
-static const swdbb_helpers_t swdbb_helpers =
-{
-    .init_swd_gpios      = init_swd_gpios,
-    .set_swdio_as_output = set_swdio_as_output,
-    .set_swdio           = set_swdio,
-    .set_swclk           = set_swclk,
-    .get_swdio           = get_swdio,
-    .delay_half_clock    = delay_half_clock
-
-#ifdef DEBUG_SWD_ON_GPIOS  // debug GPIO helpers
-  , .dbg_gpio_init      = dbg_gpio_init
-  , .dbg_gpio_set       = dbg_gpio_set
-#endif
-};
+// things are slow enough that we don't need any [extra] delay here
+#define delay_half_clock() ((void) 0)
 
 //----------------------------------------------------------------------------
 
 // Module API
 
-// The function returns the address of the structure with the SWD helper function pointers in it.
-const swdbb_helpers_t *port_get_swdbb_helpers(void) {
-    return &swdbb_helpers;
+rpexp_err_t port_swd_init_gpios(void) {
+
+    gpio_init(PIN_SWCLK);
+    gpio_init(PIN_SWDIO);
+
+    gpio_put(PIN_SWCLK, 0);
+    gpio_put(PIN_SWDIO, 0);
+
+    gpio_set_dir(PIN_SWCLK, GPIO_OUT);
+    gpio_set_dir(PIN_SWDIO, GPIO_OUT);
+
+    return RPEXP_OK;
+}
+
+
+void port_swd_put_bits(const uint8_t *txb, int n_bits) {
+    uint8_t shifter;
+
+    set_swdio_as_output(1);
+
+    for (unsigned int i = 0; i < n_bits; i++) {
+        if (i % 8 == 0) {
+            shifter = txb[i / 8];
+        } else {
+            shifter >>= 1;
+        }
+
+        set_swdio(shifter & 1u);
+        delay_half_clock();
+        set_swclk(1);
+        delay_half_clock();
+        set_swclk(0);
+    }
+}
+
+
+void port_swd_get_bits(uint8_t *rxb, int n_bits) {
+    uint8_t shifter;
+
+    set_swdio_as_output(0);
+
+    for (unsigned int i = 0; i < n_bits; i++) {
+
+        delay_half_clock();
+        uint8_t sample = get_swdio();
+        set_swclk(1);
+
+        delay_half_clock();
+        set_swclk(0);
+
+        shifter >>= 1;
+        if (sample) {
+            shifter |= (1 << 7);
+        }
+        if (i % 8 == 7)
+            rxb[i / 8] = shifter;
+    }
+
+    if (n_bits % 8 != 0) {
+        rxb[n_bits / 8] = shifter >> (8 - n_bits % 8);
+    }
+}
+
+
+void port_swd_hiz_clocks(int n_bits) {
+
+    set_swdio_as_output(0);
+
+    for (unsigned int i = 0; i < n_bits; i++) {
+        delay_half_clock();
+        set_swclk(1);
+        delay_half_clock();
+        set_swclk(0);
+    }
 }
 
 
