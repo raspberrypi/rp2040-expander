@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _PICOEXP_PORT_H_
-#define _PICOEXP_PORT_H_
+#ifndef _RPEXP_PORT_H_
+#define _RPEXP_PORT_H_
 
 // Needed for type definitions
 #include <stdint.h>
@@ -23,4 +23,4 @@
 #define DBG_GPIO_RXED               20
 #endif
 
-#endif // _PICOEXP_PORT_H_
+#endif // _RPEXP_PORT_H_

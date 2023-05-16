@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _PICOEXP_PORT_API_H_
-#define _PICOEXP_PORT_API_H_
+#ifndef _RP2040EXP_PORT_API_H_
+#define _RP2040EXP_PORT_API_H_
 
 typedef struct {
 
-    pexp_err_t (*init_swd_gpios)(void);
+    rpexp_err_t (*init_swd_gpios)(void);
 
     void (*set_swdio_as_output)(bool yes);
     void (*set_swdio)(bool high);
@@ -31,4 +31,4 @@ const swdbb_helpers_t *port_get_swdbb_helpers(void);
 
 uint64_t port_get_time_us_64(void);
 
-#endif  // _PICOEXP_PORT_API_H_
+#endif  // _RP2040EXP_PORT_API_H_

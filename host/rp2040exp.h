@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _PICOEXP_H_
-#define _PICOEXP_H_
+#ifndef _RP2040EXP_H_
+#define _RP2040EXP_H_
 
 
 // Please consult documentation regarding this setting
@@ -19,21 +19,21 @@
 
 // Return error status codes
 typedef enum {
-    PEXP_OK = 0,
-    PEXP_ERR_NO_SWDBB = 1,
-    PEXP_ERR_DAP_DISCONNECTED = 2,
-    PEXP_ERR_DAP_TARGET = 3,
-    PEXP_ERR_DAP_FAULT = 4,
-    PEXP_ERR_DAP_TIMEOUT = 5,
-    PEXP_ERR_DAP_PARITY = 6,
-    PEXP_ERR_API_ARG = 7,
-    PEXP_ERR_NOT_INITED = 8,
-    PEXP_ERR_IN_USE = 9,
-    PEXP_ERR_RESET_TIMEOUT = 10,
-    PEXP_ERR_ADC_TIMEOUT = 11,
-    PEXP_ERR_TEST = 12,
-    PEXP_ERR_UNSUPPORTED = 143
-} pexp_err_t;
+    RPEXP_OK = 0,
+    RPEXP_ERR_NO_SWDBB = 1,
+    RPEXP_ERR_DAP_DISCONNECTED = 2,
+    RPEXP_ERR_DAP_TARGET = 3,
+    RPEXP_ERR_DAP_FAULT = 4,
+    RPEXP_ERR_DAP_TIMEOUT = 5,
+    RPEXP_ERR_DAP_PARITY = 6,
+    RPEXP_ERR_API_ARG = 7,
+    RPEXP_ERR_NOT_INITED = 8,
+    RPEXP_ERR_IN_USE = 9,
+    RPEXP_ERR_RESET_TIMEOUT = 10,
+    RPEXP_ERR_ADC_TIMEOUT = 11,
+    RPEXP_ERR_TEST = 12,
+    RPEXP_ERR_UNSUPPORTED = 143
+} rpexp_err_t;
 
 
 typedef enum {
@@ -55,7 +55,7 @@ typedef enum {
     GPIO_CLKOUT_CLK_ADC = 8,
     GPIO_CLKOUT_CLK_RTC = 9,
     GPIO_CLKOUT_CLK_REF = 10
-} pexp_clkout_t;
+} rpexp_clkout_t;
 
 /*
 typedef enum {
@@ -74,9 +74,9 @@ typedef enum {
 
 /*! \brief Initialise the Pico expander sub-system
  *
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_init(void);
+rpexp_err_t rpexp_init(void);
 
 
 /*! \brief Enable or disable the GPIO HW
@@ -87,9 +87,9 @@ pexp_err_t pexp_init(void);
  *       the GPIO hardware must first be enabled so it can operate.
  *
  * \param enable        Enable (true) or disable (false) the hardware GPIO block
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_block_enable(bool enable);
+rpexp_err_t rpexp_gpio_block_enable(bool enable);
 
 
 /*! \brief Initialise a GPIO for I/O
@@ -98,9 +98,9 @@ pexp_err_t pexp_gpio_block_enable(bool enable);
  * Clear any output value.
  *
  * \param gpio          GPIO number between 0 and 29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_init(uint32_t gpio);
+rpexp_err_t rpexp_gpio_init(uint32_t gpio);
 
 
 /*! \brief Initialise multiple GPIOs for I/O
@@ -109,34 +109,34 @@ pexp_err_t pexp_gpio_init(uint32_t gpio);
  * Clear any output value.
  *
  * \param mask          Mask with 1 bit per GPIO initialise, bits 0-29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_init_mask(uint32_t mask);
+rpexp_err_t rpexp_gpio_init_mask(uint32_t mask);
 
 
 /*! \brief Resets a GPIO back to the NULL function, i.e. disables it.
  *
  * \param gpio          GPIO number between 0 and 29 to disable
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_deinit(uint32_t gpio);
+rpexp_err_t rpexp_gpio_deinit(uint32_t gpio);
 
 
 /*! \brief Resets multiple GPIOs back to the NULL function, i.e. disables them
  *
  * \param mask          Mask with 1 bit per GPIO disable, bits 0-29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_deinit_mask(uint32_t mask);
+rpexp_err_t rpexp_gpio_deinit_mask(uint32_t mask);
 
 
 /*! \brief Set a single GPIO direction
  *
  * \param gpio          GPIO number between 0 and 29
  * \param gpio_dir      GPIO direction, see enum
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_set_dir(uint32_t gpio, gpio_dir_t gpio_dir);
+rpexp_err_t rpexp_gpio_set_dir(uint32_t gpio, gpio_dir_t gpio_dir);
 
 
 /*! \brief Set a number of GPIOs to output
@@ -144,95 +144,95 @@ pexp_err_t pexp_gpio_set_dir(uint32_t gpio, gpio_dir_t gpio_dir);
  * Switch all GPIOs in "mask" to output
  *
  * \param mask          Bitmask of GPIOs to set to output, bits 0-29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_set_dir_out_masked(uint32_t mask);
+rpexp_err_t rpexp_gpio_set_dir_out_masked(uint32_t mask);
 
 
 /*! \brief Set a number of GPIOs to input
  *
  * \param mask          Bitmask of GPIOs to set to input, bits 0-29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_set_dir_in_masked(uint32_t mask);
+rpexp_err_t rpexp_gpio_set_dir_in_masked(uint32_t mask);
 
 
 /*! \brief Drive a single GPIO high
  *
  * \param gpio          GPIO number between 0 and 29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_set(uint32_t gpio);
+rpexp_err_t rpexp_gpio_set(uint32_t gpio);
 
 
 /*! \brief Drive a single GPIO low
  *
  * \param gpio          GPIO number between 0 and 29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_clr(uint32_t gpio);
+rpexp_err_t rpexp_gpio_clr(uint32_t gpio);
 
 
 /*! \brief Toggle a single GPIO
  *
  * \param gpio          GPIO number between 0 and 29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_toggle(uint32_t gpio);
+rpexp_err_t rpexp_gpio_toggle(uint32_t gpio);
 
 
 /*! \brief Drive high every GPIO appearing in mask
  *
  * \param mask          Bitmask of GPIO values to set, bits 0-29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_set_mask(uint32_t mask);
+rpexp_err_t rpexp_gpio_set_mask(uint32_t mask);
 
 
 /*! \brief Drive low every GPIO appearing in mask
  *
  * \param mask          Bitmask of GPIO values to clear, bits 0-29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_clr_mask(uint32_t mask);
+rpexp_err_t rpexp_gpio_clr_mask(uint32_t mask);
 
 
 /*! \brief Toggle every GPIO appearing in mask
  *
  * \param mask          Bitmask of GPIO values to toggle, bits 0-29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_toggle_mask(uint32_t mask);
+rpexp_err_t rpexp_gpio_toggle_mask(uint32_t mask);
 
 
 /*! \brief Drive all [output] GPIOs according to the mask
  *
  * \param mask          Drive all GPIOs, 0-29, according to mask
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-void pexp_gpio_put_all(uint32_t mask);
+void rpexp_gpio_put_all(uint32_t mask);
 
 
 /*! \brief Read the values of all [input] GPIOs
  *
  * \returns uint32_t    Input bits or 0xFFFFFFFF if failed
  */
-uint32_t pexp_gpio_get_all(void);
+uint32_t rpexp_gpio_get_all(void);
 
 
 /*! \brief Output an (optionally divided) clock to gpios: 21, 23, 24 or 25
  *
  * NOTE:  Unless you are using a crystal or and external reference clock supplied
  *        to the XIN pin, you will *not* be able to use the PLLs and so the highest
- *        frequency available will be the ROSC, please see comments for pexp_set_xosc()
+ *        frequency available will be the ROSC, please see comments for rpexp_set_xosc()
  *
  * \param gpio          GPIO numbers: 21, 23, 24, 25 ONLY, other GPIOs do not support this!
- * \param clk_sel       Clock selection, see definition of: pexp_clkout_t
+ * \param clk_sel       Clock selection, see definition of: rpexp_clkout_t
  * \param div           The amount to divide the source clock frequency by - as a float.
  *                      This is useful to not overwhelm the GPIO pin with a fast clock.
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_clock_gpio_init(uint32_t gpio, pexp_clkout_t clk_sel, float div);
+rpexp_err_t rpexp_clock_gpio_init(uint32_t gpio, rpexp_clkout_t clk_sel, float div);
 
 //----------------------------------------------------------------------------
 
@@ -244,9 +244,9 @@ pexp_err_t pexp_clock_gpio_init(uint32_t gpio, pexp_clkout_t clk_sel, float div)
  *       the Hi GPIO hardware must first be enabled so it can operate.
  *
  * \param enable        Enable (true) or disable (false) the Hi GPIO block hardware
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_block_enable(bool enable);
+rpexp_err_t rpexp_gpio_hi_block_enable(bool enable);
 
 
 /*! \brief Initialise a Hi GPIO for I/O
@@ -255,9 +255,9 @@ pexp_err_t pexp_gpio_hi_block_enable(bool enable);
  * Clear any output value.
  *
  * \param higpio        Hi GPIO number between 0 and 5
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_init(uint32_t higpio);
+rpexp_err_t rpexp_gpio_hi_init(uint32_t higpio);
 
 
 /*! \brief Initialise multiple Hi GPIOs for I/O
@@ -266,34 +266,34 @@ pexp_err_t pexp_gpio_hi_init(uint32_t higpio);
  * Clear any output value.
  *
  * \param himask        Mask with 1 bit per Hi GPIO initialise, bits 0-5
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_init_mask(uint32_t himask);
+rpexp_err_t rpexp_gpio_hi_init_mask(uint32_t himask);
 
 
 /*! \brief Resets a Hi GPIO back to the NULL function, i.e. disables it.
  *
  * \param gpio          Hi GPIO number  between 0 and 5 to disable
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_deinit(uint32_t higpio);
+rpexp_err_t rpexp_gpio_hi_deinit(uint32_t higpio);
 
 
 /*! \brief Resets multiple Hi GPIOs back to the NULL function, i.e. disables them
  *
  * \param himask        Mask with 1 bit per Hi GPIO disable, bits 0-5
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_deinit_mask(uint32_t himask);
+rpexp_err_t rpexp_gpio_hi_deinit_mask(uint32_t himask);
 
 
 /*! \brief Set a single Hi GPIO direction
  *
  * \param higpio        Hi GPIO number between 0 and 5
  * \param gpio_dir      Hi GPIO direction, see enum
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_set_dir(uint32_t higpio, gpio_dir_t gpio_dir);
+rpexp_err_t rpexp_gpio_hi_set_dir(uint32_t higpio, gpio_dir_t gpio_dir);
 
 
 /*! \brief Set a number of Hi GPIOs to output
@@ -301,56 +301,56 @@ pexp_err_t pexp_gpio_hi_set_dir(uint32_t higpio, gpio_dir_t gpio_dir);
  * Switch all Hi GPIOs in "mask" to output
  *
  * \param himask        Bitmask of Hi GPIOs to set to output, bits 0-5
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_set_dir_out_masked(uint32_t himask);
+rpexp_err_t rpexp_gpio_hi_set_dir_out_masked(uint32_t himask);
 
 
 /*! \brief Set a number of Hi GPIOs to input
  *
  * \param himask        Bitmask of Hi GPIOs to set to input, bits 0-5
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_set_dir_in_masked(uint32_t himask);
+rpexp_err_t rpexp_gpio_hi_set_dir_in_masked(uint32_t himask);
 
 
 /*! \brief Drive high every Hi GPIO appearing in mask
  *
  * \param himask        Bitmask of Hi GPIO values to set, bits 0-5
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_set_mask(uint32_t himask);
+rpexp_err_t rpexp_gpio_hi_set_mask(uint32_t himask);
 
 
 /*! \brief Drive low every Hi GPIO appearing in mask
  *
  * \param himask        Bitmask of Hi GPIO values to clear, bits 0-5
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_clr_mask(uint32_t himask);
+rpexp_err_t rpexp_gpio_hi_clr_mask(uint32_t himask);
 
 
 /*! \brief Toggle every Hi GPIO appearing in mask
  *
  * \param himask        Bitmask of Hi GPIO values to toggle, bits 0-5
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_hi_toggle_mask(uint32_t himask);
+rpexp_err_t rpexp_gpio_hi_toggle_mask(uint32_t himask);
 
 
 /*! \brief Drive all [output] Hi GPIOs according to the mask
  *
  * \param himask        Drive all Hi GPIOs, 0-5, according to mask
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-void  pexp_gpio_hi_put_all(uint32_t himask);
+void  rpexp_gpio_hi_put_all(uint32_t himask);
 
 
 /*! \brief Read the values of all [input] Hi GPIOs
  *
  * \returns uint32_t    GPIO Hi Input bits or 0xFFFFFFFF if failed
  */
-uint32_t  pexp_gpio_hi_get_all(void);
+uint32_t  rpexp_gpio_hi_get_all(void);
 
 
 /*! \brief Enable/disable pull up and/or pull downs on specific GPIO
@@ -361,18 +361,18 @@ uint32_t  pexp_gpio_hi_get_all(void);
  * \param gpio          GPIO number between 0 and 29
  * \param up            Enable (true) or disable (false) the pull up
  * \param down          Enable (true) or disable (false) the pull down
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_gpio_set_pulls(uint32_t gpio, bool up, bool down);
+rpexp_err_t rpexp_gpio_set_pulls(uint32_t gpio, bool up, bool down);
 
 
 /*! \brief Disable any pull ups and/or pull downs on specific GPIO
  *
  * \param gpio          GPIO number between 0 and 29
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-static inline pexp_err_t pexp_disable_gpio_pulls(uint32_t gpio) {
-        return pexp_gpio_set_pulls(gpio, 0, 0);
+static inline rpexp_err_t rpexp_disable_gpio_pulls(uint32_t gpio) {
+        return rpexp_gpio_set_pulls(gpio, 0, 0);
 }
 
 //----------------------------------------------------------------------------
@@ -388,9 +388,9 @@ static inline pexp_err_t pexp_disable_gpio_pulls(uint32_t gpio) {
  *
  * \param address       Expander address to read (memory or peripheral)
  * \param pdata         Pointer to 32-bit word to receive read value
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_read32(uint32_t address, uint32_t *pdata);
+rpexp_err_t rpexp_read32(uint32_t address, uint32_t *pdata);
 
 
 /*! \brief Write a 32-bit word into the expander's memory map
@@ -403,9 +403,9 @@ pexp_err_t pexp_read32(uint32_t address, uint32_t *pdata);
  *
  * \param address       Expander address to read (memory or peripheral)
  * \param data          32-bit data word to be written
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_write32(uint32_t address, uint32_t data);
+rpexp_err_t rpexp_write32(uint32_t address, uint32_t data);
 
 
 /*! \brief Read a block of 32-bit words from the expander's memory map
@@ -420,9 +420,9 @@ pexp_err_t pexp_write32(uint32_t address, uint32_t data);
  * \param address       Expander start address to read (memory or peripheral)
  * \param pdata         Pointer to buffer of 32-bits words to receive data
  * \param length        Number of 32-bit words to read into the buffer
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_block_read32(uint32_t address, uint32_t *pdata, uint32_t length);
+rpexp_err_t rpexp_block_read32(uint32_t address, uint32_t *pdata, uint32_t length);
 
 
 /*! \brief Write a block of 32-bit words into the expander's memory map
@@ -437,9 +437,9 @@ pexp_err_t pexp_block_read32(uint32_t address, uint32_t *pdata, uint32_t length)
  * \param address       Expander start address to write (memory or peripheral)
  * \param pdata         Pointer to source data buffer of 32-bit words
  * \param length        Number of 32-bit words to write into the expander
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_block_write32(uint32_t address, const uint32_t *pdata, uint32_t length);
+rpexp_err_t rpexp_block_write32(uint32_t address, const uint32_t *pdata, uint32_t length);
 
 
 /*! \brief Set new values for a sub-set of the bits in a hardware register
@@ -459,9 +459,9 @@ pexp_err_t pexp_block_write32(uint32_t address, const uint32_t *pdata, uint32_t 
  * \param addr          Address of writable register
  * \param values        New bit value(s)
  * \param write_mask    Mask of bits to change
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_write_hw_mask(uint32_t addr, uint32_t values, uint32_t write_mask);
+rpexp_err_t rpexp_write_hw_mask(uint32_t addr, uint32_t values, uint32_t write_mask);
 
 
 /*! \brief Sets bits a 32-bit register in the expander's hardware
@@ -479,9 +479,9 @@ pexp_err_t pexp_write_hw_mask(uint32_t addr, uint32_t values, uint32_t write_mas
  *
  * \param address       (base) Register address to modify
  * \param mask          Bitmask of bits to set in the register
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_hw_set_bits(uint32_t addr, uint32_t mask);
+rpexp_err_t rpexp_hw_set_bits(uint32_t addr, uint32_t mask);
 
 
 /*! \brief Clears bits a 32-bit register in the expander's hardware
@@ -499,9 +499,9 @@ pexp_err_t pexp_hw_set_bits(uint32_t addr, uint32_t mask);
  *
  * \param address       (base) Register address to modify
  * \param mask          Bitmask of bits to clear in the register
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_hw_clear_bits(uint32_t addr, uint32_t mask);
+rpexp_err_t rpexp_hw_clear_bits(uint32_t addr, uint32_t mask);
 
 
 /*! \brief Toggle bits a 32-bit register in the expander's hardware
@@ -519,9 +519,9 @@ pexp_err_t pexp_hw_clear_bits(uint32_t addr, uint32_t mask);
  *
  * \param address       (base) Register address to modify
  * \param mask          Bitmask of bits to toggle in the register
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_hw_xor_bits(uint32_t addr, uint32_t mask);
+rpexp_err_t rpexp_hw_xor_bits(uint32_t addr, uint32_t mask);
 
 
 /*! \brief De/initialise the ADC HW
@@ -532,16 +532,16 @@ pexp_err_t pexp_hw_xor_bits(uint32_t addr, uint32_t mask);
  *       the ADC hardware must first be enabled so it can operate.
  *
  * \param enable        Enable (true) or disable (false) the hardware ADC block
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_adc_block_enable(bool enable);
+rpexp_err_t rpexp_adc_block_enable(bool enable);
 
 
 /*! \brief Initialise the ADC
  *
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_adc_init(void);
+rpexp_err_t rpexp_adc_init(void);
 
 
 /*! \brief Initialise gpio for use as an ADC pin
@@ -549,9 +549,9 @@ pexp_err_t pexp_adc_init(void);
  * Prepare a GPIO for use with ADC by disabling all digital functions.
  *
  * \param gpio          GPIO numbers: 26, 27, 28, 29 ONLY, other GPIOs do not support this!
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_adc_gpio_init(uint32_t gpio);
+rpexp_err_t rpexp_adc_gpio_init(uint32_t gpio);
 
 
 /*! \brief  ADC input select
@@ -560,9 +560,9 @@ pexp_err_t pexp_adc_gpio_init(uint32_t gpio);
  * Input 4 is the onboard temperature sensor.
  *
  * \param input         ADC input to select
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_adc_select_input(uint32_t input);
+rpexp_err_t rpexp_adc_select_input(uint32_t input);
 
 
 /*! \brief  Get the currently selected ADC input channel
@@ -572,23 +572,23 @@ pexp_err_t pexp_adc_select_input(uint32_t input);
  *  Channel 4 is the onboard temperature sensor.
  *
  * \param pinput        Pointer to 32-bit word to receive input channel
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_adc_get_selected_input(uint32_t *pinput);
+rpexp_err_t rpexp_adc_get_selected_input(uint32_t *pinput);
 
 
 /*! \brief Enable or disable the onchip temperature sensor
  *
  * \param enable        Enable (true) or disable (false) the onchip temperature sensor
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_adc_set_temp_sensor_enabled(bool enable);
+rpexp_err_t rpexp_adc_set_temp_sensor_enabled(bool enable);
 
 
 /*! \brief Perform a single ADC conversion
  *
  * \param enable        Enable (true) or disable (false) the onchip temperature sensor
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
 
 
@@ -597,9 +597,9 @@ pexp_err_t pexp_adc_set_temp_sensor_enabled(bool enable);
  *  Performs an ADC conversion, waits for the result, and then returns it.
  *
  * \param padc          Pointer to 16-bit word to receive the ADC reading
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_adc_read(uint16_t *padc);
+rpexp_err_t rpexp_adc_read(uint16_t *padc);
 
 //----------------------------------------------------------------------------
 
@@ -617,9 +617,9 @@ pexp_err_t pexp_adc_read(uint16_t *padc);
  * Note: The 32-bit tick count value can *wrap* during feasible execution times.
  *
  * \param pticks        Pointer to 32-bit word to receive the tick count value
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_time_get_ticks32(uint32_t *pticks);
+rpexp_err_t rpexp_time_get_ticks32(uint32_t *pticks);
 
 
 /*! \brief Read a 64-bit tick count from the timer
@@ -634,9 +634,9 @@ pexp_err_t pexp_time_get_ticks32(uint32_t *pticks);
  * and runs continuously from that point on.
  *
  * \param pticks        Pointer to 64-bit word to receive the tick count value
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_time_get_ticks64(uint64_t *pticks);
+rpexp_err_t rpexp_time_get_ticks64(uint64_t *pticks);
 
 
 /*! \brief Read the Ring Oscillator's divider ratio
@@ -645,9 +645,9 @@ pexp_err_t pexp_time_get_ticks64(uint64_t *pticks);
  * which will be between  1 to 32.
  *
  * \param pdiv          Pointer to 32-bit word to receive the ROSC divider ratio
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_rosc_get_div(uint32_t *pdiv);
+rpexp_err_t rpexp_rosc_get_div(uint32_t *pdiv);
 
 
 /*! \brief Set the Ring Oscillator's divider ratio
@@ -665,24 +665,24 @@ pexp_err_t pexp_rosc_get_div(uint32_t *pdiv);
  * the ROSC clock when the divide ratio is increased.
  *
  * \param div           New ROSC divider ratio, 1..32  !Note comments above!
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_rosc_set_div(uint32_t div);
+rpexp_err_t rpexp_rosc_set_div(uint32_t div);
 
 
-pexp_err_t pexp_rosc_set_range(uint32_t range);
+rpexp_err_t rpexp_rosc_set_range(uint32_t range);
 
 
-pexp_err_t pexp_rosc_get_freq_ab_bits(uint32_t *pfreq);
+rpexp_err_t rpexp_rosc_get_freq_ab_bits(uint32_t *pfreq);
 
 
-pexp_err_t pexp_rosc_set_freq_ab_bits(uint32_t freq);
+rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq);
 
 
-uint32_t pexp_rosc_inc_freq_ab_bits(uint32_t freq32);
+uint32_t rpexp_rosc_inc_freq_ab_bits(uint32_t freq32);
 
 
-uint32_t pexp_rosc_dec_freq_ab_bits(uint32_t freq32);
+uint32_t rpexp_rosc_dec_freq_ab_bits(uint32_t freq32);
 
 
 /*! \brief Calculate the ROSC system clock frequency, update time/count snapshot
@@ -736,24 +736,24 @@ uint32_t pexp_rosc_dec_freq_ab_bits(uint32_t freq32);
  * divider stage; the actual ROSC frequency can be higher the clock it generates
  * for system as a whole.
  *
- * The ROSC divider ratio can be read using pexp_rosc_get_div(), it will range
+ * The ROSC divider ratio can be read using rpexp_rosc_get_div(), it will range
  * between 1 and 32, it has a power-up default value of 16.
  *
  * \param rosc_freq_hz  Pointer to 32-bit word to receive the ROSC clock freq in Hz
  * \param min_sample_us Observe minimum period (us) since start / last calculation.
  *                      If 0, do not observe any minimum sample time criteria.
- * \returns pexp_err_t  Operation result
+ * \returns rpexp_err_t  Operation result
  */
-pexp_err_t pexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32_t min_sample_us);
+rpexp_err_t rpexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32_t min_sample_us);
 
 
-pexp_err_t pexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdiv_clock_hz,
+rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdiv_clock_hz,
                                                    uint32_t *measured_rosc_postdiv_clock_hz);
 
 //----------------------------------------------------------------------------
 
 // Then a set of simple clock init code, with some parameters to set up the PLL (etc.)
-pexp_err_t pexp_set_rosc(void);
-pexp_err_t pexp_set_xosc(void);  // this can fail
+rpexp_err_t rpexp_set_rosc(void);
+rpexp_err_t rpexp_set_xosc(void);  // this can fail
 
-#endif // _PICOEXP_H_
+#endif // _RP2040EXP_H_

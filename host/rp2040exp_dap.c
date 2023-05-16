@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <picoexp_port.h>
-#include <picoexp_dap.h>
-#include <picoexp.h>
-#include <picoexp_port_api.h>
+#include <rp2040exp_port.h>
+#include <rp2040exp_dap.h>
+#include <rp2040exp.h>
+#include <rp2040exp_port_api.h>
 #include <rp2040_includes.h>
 
 
@@ -217,7 +217,7 @@ static void send_dap_header(uint8_t rnw_dap_and_reg) {
 }
 
 
-static pexp_err_t send_dap_header_read_status(uint8_t rnw_dap_and_reg) {
+static rpexp_err_t send_dap_header_read_status(uint8_t rnw_dap_and_reg) {
 
     uint8_t i;
     uint8_t status;
@@ -230,7 +230,7 @@ static pexp_err_t send_dap_header_read_status(uint8_t rnw_dap_and_reg) {
 
         switch (status) {
             case DAP_STATUS_OK:
-                return PEXP_OK;
+                return RPEXP_OK;
                 break;
 
             // FIXME HERE TODO The needs to be explicitly tested, I've not yet seen it!
@@ -241,18 +241,18 @@ static pexp_err_t send_dap_header_read_status(uint8_t rnw_dap_and_reg) {
 
             case DAP_STATUS_FAULT:
                 hiz_clocks(1);
-                return PEXP_ERR_DAP_FAULT;
+                return RPEXP_ERR_DAP_FAULT;
                 break;
 
             default:
                 hiz_clocks(1);
                 // Guess at not connected
-                return PEXP_ERR_DAP_DISCONNECTED;
+                return RPEXP_ERR_DAP_DISCONNECTED;
                 break;
         }
     }
 
-    return PEXP_ERR_DAP_TIMEOUT;
+    return RPEXP_ERR_DAP_TIMEOUT;
 }
 
 
@@ -272,7 +272,7 @@ static void send_dap_word(uint32_t dapw) {
 }
 
 
-static pexp_err_t read_dap_word(uint32_t *pdata) {
+static rpexp_err_t read_dap_word(uint32_t *pdata) {
     uint32_t parity;
     uint32_t mask;
 
@@ -291,10 +291,10 @@ static pexp_err_t read_dap_word(uint32_t *pdata) {
     get_bits((uint8_t *)&mask, 1);
 
     if (parity != mask) {
-        return PEXP_ERR_DAP_PARITY;
+        return RPEXP_ERR_DAP_PARITY;
     }
 
-    return PEXP_OK;
+    return RPEXP_OK;
 }
 
 
@@ -328,21 +328,21 @@ static void swd_line_reset(void) {
 }
 
 
-static pexp_err_t table_driven_dap_reg_setup(const dap_reg_rd_wr_seq_t *dap_rd_wr_seq, uint32_t table_length) {
+static rpexp_err_t table_driven_dap_reg_setup(const dap_reg_rd_wr_seq_t *dap_rd_wr_seq, uint32_t table_length) {
 
-    pexp_err_t pexp_err = PEXP_OK;
+    rpexp_err_t rpexp_err = RPEXP_OK;
     uint32_t dummy;
 
-    for (unsigned int i = 0; i < table_length && pexp_err == PEXP_OK; i++) {
+    for (unsigned int i = 0; i < table_length && rpexp_err == RPEXP_OK; i++) {
 
         if (dap_rd_wr_seq[i].rd_wr == DAP_WR) {
-            pexp_err = dap_write(dap_rd_wr_seq[i].dap_reg, dap_rd_wr_seq[i].cdata);
+            rpexp_err = dap_write(dap_rd_wr_seq[i].dap_reg, dap_rd_wr_seq[i].cdata);
         } else {
-            pexp_err = dap_read(dap_rd_wr_seq[i].dap_reg, &dummy);
+            rpexp_err = dap_read(dap_rd_wr_seq[i].dap_reg, &dummy);
         }
     }
 
-    return pexp_err;
+    return rpexp_err;
 }
 
 
@@ -353,9 +353,9 @@ static void reset_register_caching(void) {
 }
 
 
-static pexp_err_t connect_to_a_dp_instance(uint32_t target_id, uint32_t expected_dpidr) {
+static rpexp_err_t connect_to_a_dp_instance(uint32_t target_id, uint32_t expected_dpidr) {
 
-    pexp_err_t pexp_err;
+    rpexp_err_t rpexp_err;
     uint32_t read_dpidr;
 
     reset_register_caching();  // caching is only one DP instance deep
@@ -367,20 +367,20 @@ static pexp_err_t connect_to_a_dp_instance(uint32_t target_id, uint32_t expected
 
     send_targetselect(target_id);
 
-    pexp_err = dap_read(DP_REG_DPIDR, &read_dpidr);
+    rpexp_err = dap_read(DP_REG_DPIDR, &read_dpidr);
 
-    if ((pexp_err == PEXP_OK) && (read_dpidr != expected_dpidr)) {
-        pexp_err = PEXP_ERR_DAP_TARGET;
+    if ((rpexp_err == RPEXP_OK) && (read_dpidr != expected_dpidr)) {
+        rpexp_err = RPEXP_ERR_DAP_TARGET;
     }
 
-    return pexp_err;
+    return rpexp_err;
 }
 
 //----------------------------------------------------------------------------
 
 // Module API
 
-pexp_err_t dap_if_init(void) {
+rpexp_err_t dap_if_init(void) {
 
     swdbb = port_get_swdbb_helpers();
 
@@ -390,46 +390,46 @@ pexp_err_t dap_if_init(void) {
 }
 
 
-pexp_err_t dap_reset_chip_halt_cpus(void) {
+rpexp_err_t dap_reset_chip_halt_cpus(void) {
 
-    pexp_err_t pexp_err;
+    rpexp_err_t rpexp_err;
 
-    pexp_err = connect_to_a_dp_instance(DLPIDR_TARGETID_RESCUE_DP, EXPECTED_DPIDR_RESCUE_DP);
+    rpexp_err = connect_to_a_dp_instance(DLPIDR_TARGETID_RESCUE_DP, EXPECTED_DPIDR_RESCUE_DP);
 
-    if (pexp_err == PEXP_OK) {
-        pexp_err = table_driven_dap_reg_setup(use_rescue_dp_to_reset_chip, NUM_ELES(use_rescue_dp_to_reset_chip));
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = table_driven_dap_reg_setup(use_rescue_dp_to_reset_chip, NUM_ELES(use_rescue_dp_to_reset_chip));
     }
 
-    return pexp_err;
+    return rpexp_err;
 }
 
 
-pexp_err_t dap_initial_chip_config(void) {
+rpexp_err_t dap_initial_chip_config(void) {
 
-    pexp_err_t pexp_err;
+    rpexp_err_t rpexp_err;
 
-    pexp_err = connect_to_a_dp_instance(DLPIDR_TARGETID_0, EXPECTED_DPIDR_0);
+    rpexp_err = connect_to_a_dp_instance(DLPIDR_TARGETID_0, EXPECTED_DPIDR_0);
 
-    if (pexp_err == PEXP_OK) {
-        pexp_err = table_driven_dap_reg_setup(setup_dap_instance_0, NUM_ELES(setup_dap_instance_0));
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = table_driven_dap_reg_setup(setup_dap_instance_0, NUM_ELES(setup_dap_instance_0));
     }
 
-    if (pexp_err == PEXP_OK) {
+    if (rpexp_err == RPEXP_OK) {
         // This can't be done until after the above
         // The top 16-bits are a magic unlock pattern, the bottom 2 bits halt the CPU
-        pexp_err = pexp_write32(DCB_DHCSR,  0xA05F0003ul);
+        rpexp_err = rpexp_write32(DCB_DHCSR,  0xA05F0003ul);
     }
 
-    return pexp_err;
+    return rpexp_err;
 }
 
 
-pexp_err_t dap_set_target_rd_wr_address(uint32_t address, auto_inc_t inc_mode) {
+rpexp_err_t dap_set_target_rd_wr_address(uint32_t address, auto_inc_t inc_mode) {
 
     uint32_t new_csw;
-    pexp_err_t pexp_err = PEXP_OK;
+    rpexp_err_t rpexp_err = RPEXP_OK;
 
-  //pexp_err = dap_write(DP_REG_SELECT, 0);  // NOTE: We leave the Bank selects at 0
+  //rpexp_err = dap_write(DP_REG_SELECT, 0);  // NOTE: We leave the Bank selects at 0
 
     if (inc_mode == NO_AUTO_INC) {
         new_csw = 0xA2000002ul;   // Word read, no inc
@@ -438,51 +438,51 @@ pexp_err_t dap_set_target_rd_wr_address(uint32_t address, auto_inc_t inc_mode) {
     }
 
     if (dap_reg_cache.last_csw != new_csw) {
-        pexp_err = dap_write(AP_REG_CSW, new_csw);
+        rpexp_err = dap_write(AP_REG_CSW, new_csw);
         dap_reg_cache.last_csw = new_csw;
     }
 
-    if (pexp_err == PEXP_OK) {
+    if (rpexp_err == RPEXP_OK) {
         if (dap_reg_cache.last_tar != address) {
-            pexp_err = dap_write(AP_REG_TAR, address);  // set address
+            rpexp_err = dap_write(AP_REG_TAR, address);  // set address
             dap_reg_cache.last_tar = address;
         }
     }
 
-    return pexp_err;
+    return rpexp_err;
 }
 
 
 // SWD transactions - *everything* is built on top of these
-pexp_err_t dap_read(uint8_t dap_and_reg, uint32_t *pdata) {
+rpexp_err_t dap_read(uint8_t dap_and_reg, uint32_t *pdata) {
 
-    pexp_err_t pexp_err = send_dap_header_read_status(DAP_RD | dap_and_reg);
+    rpexp_err_t rpexp_err = send_dap_header_read_status(DAP_RD | dap_and_reg);
 
-    if (pexp_err != PEXP_OK) {
+    if (rpexp_err != RPEXP_OK) {
         *pdata = 0;
-        return pexp_err;
+        return rpexp_err;
     }
 
-    pexp_err = read_dap_word(pdata);
+    rpexp_err = read_dap_word(pdata);
 
     // Turnaround for next packet header to be sent
     hiz_clocks(1);
 
-    return pexp_err;
+    return rpexp_err;
 }
 
 
-pexp_err_t dap_write(uint8_t dap_and_reg, uint32_t data) {
+rpexp_err_t dap_write(uint8_t dap_and_reg, uint32_t data) {
 
-    pexp_err_t pexp_err = send_dap_header_read_status(DAP_WR | dap_and_reg);
+    rpexp_err_t rpexp_err = send_dap_header_read_status(DAP_WR | dap_and_reg);
 
-    if (pexp_err != PEXP_OK) {
-        return pexp_err;
+    if (rpexp_err != RPEXP_OK) {
+        return rpexp_err;
     }
 
     hiz_clocks(1);
 
     send_dap_word(data);
 
-    return PEXP_OK;
+    return RPEXP_OK;
 }

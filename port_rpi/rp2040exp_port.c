@@ -6,9 +6,9 @@
  * Helper functions for an RPi host
  */
 
-#include <picoexp_port.h>
-#include <picoexp.h>
-#include <picoexp_port_api.h>
+#include <rp2040exp_port.h>
+#include <rp2040exp.h>
+#include <rp2040exp_port_api.h>
 
 // This code uses the 'libgpiod' library to access the Pi's GPIOs
 #include <gpiod.h>
@@ -24,12 +24,12 @@ static struct gpiod_chip *chip = NULL;
 static struct gpiod_line *hswclk;
 static struct gpiod_line *hswdio;
 
-static pexp_err_t init_swd_gpios(void) {
+static rpexp_err_t init_swd_gpios(void) {
 
     if (!chip) {
         chip = gpiod_chip_open_by_name(chipname);
         if (!chip) {
-            return PEXP_ERR_NO_SWDBB;
+            return RPEXP_ERR_NO_SWDBB;
         }
     }
 
@@ -37,19 +37,19 @@ static pexp_err_t init_swd_gpios(void) {
     hswdio = gpiod_chip_get_line(chip, PIN_SWDIO);
 
     if (!hswclk || !hswdio) {
-        return PEXP_ERR_NO_SWDBB;
+        return RPEXP_ERR_NO_SWDBB;
     }
 
     if (0 != gpiod_line_request_output(hswclk, "swclk", 0)) {
-        return PEXP_ERR_NO_SWDBB;
+        return RPEXP_ERR_NO_SWDBB;
     }
 
     // initially this is an output although it swaps during operation
     if (0 != gpiod_line_request_output(hswdio, "swdio", 0)) {
-        return PEXP_ERR_NO_SWDBB;
+        return RPEXP_ERR_NO_SWDBB;
     }
 
-    return PEXP_OK;
+    return RPEXP_OK;
 }
 
 

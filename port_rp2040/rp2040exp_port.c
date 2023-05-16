@@ -8,9 +8,9 @@
 
 #include "pico/stdlib.h"
 
-#include <picoexp_port.h>
-#include <picoexp.h>
-#include <picoexp_port_api.h>
+#include <rp2040exp_port.h>
+#include <rp2040exp.h>
+#include <rp2040exp_port_api.h>
 
 
 // Timing definitions
@@ -19,7 +19,7 @@ static_assert(HALF_CLOCK_CYCLE_US != 0, "SWD clock rate is too fast for: sleep_u
 
 
 // private helper functions for an RP2040 host (using the Pico-SDK)
-static pexp_err_t init_swd_gpios(void) {
+static rpexp_err_t init_swd_gpios(void) {
     gpio_init(PIN_SWCLK);
     gpio_init(PIN_SWDIO);
 
@@ -29,7 +29,7 @@ static pexp_err_t init_swd_gpios(void) {
     gpio_set_dir(PIN_SWCLK, GPIO_OUT);
     gpio_set_dir(PIN_SWDIO, GPIO_OUT);
 
-    return PEXP_OK;
+    return RPEXP_OK;
 }   
 
 static void inline set_swdio_as_output(bool out) {

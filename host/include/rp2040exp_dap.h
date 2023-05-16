@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _PICOEXP_DAP_H_
-#define _PICOEXP_DAP_H_
+#ifndef _RP2040EXP_DAP_H_
+#define _RP2040EXP_DAP_H_
 
-#include <picoexp_port.h>
-#include <picoexp.h>
+#include <rp2040exp_port.h>
+#include <rp2040exp.h>
 
 
 // DAP control field and register address constants are defined below
@@ -61,13 +61,13 @@ typedef enum {
 } auto_inc_t;
 
 // initialisation functions
-pexp_err_t dap_if_init(void);
-pexp_err_t dap_reset_chip_halt_cpus(void);
-pexp_err_t dap_initial_chip_config(void);
-pexp_err_t dap_set_target_rd_wr_address(uint32_t address, auto_inc_t inc_mode);
+rpexp_err_t dap_if_init(void);
+rpexp_err_t dap_reset_chip_halt_cpus(void);
+rpexp_err_t dap_initial_chip_config(void);
+rpexp_err_t dap_set_target_rd_wr_address(uint32_t address, auto_inc_t inc_mode);
 
 // DAP level transactions via SWD - *everything* is built on top of these
-pexp_err_t dap_write(uint8_t dap_and_reg, uint32_t data);
-pexp_err_t dap_read(uint8_t dap_and_reg, uint32_t *pdata);
+rpexp_err_t dap_write(uint8_t dap_and_reg, uint32_t data);
+rpexp_err_t dap_read(uint8_t dap_and_reg, uint32_t *pdata);
 
-#endif // _PICOEXP_DAP_H_
+#endif // _RP2040EXP_DAP_H_

@@ -14,8 +14,8 @@
 #endif
 
 #include <stdio.h>
-#include <picoexp_port.h>
-#include <picoexp.h>
+#include <rp2040exp_port.h>
+#include <rp2040exp.h>
 #include <inttypes.h>
 
 // "Mock up" *nix like timing functions for an RP2040 host
@@ -51,12 +51,12 @@ static uint32_t prand32_galois(void) {
     return lfsr32;
 }
 
-static pexp_err_t read_chip_temperature(void);
+static rpexp_err_t read_chip_temperature(void);
 
 
 int main() {
 
-    pexp_err_t pexp_err;
+    rpexp_err_t rpexp_err;
     uint32_t rdwr_buffer[RDWR_BUFF_SIZE_WORDS];
     uint32_t i, ram_offset;
     uint32_t data;
@@ -72,51 +72,51 @@ int main() {
 
     uint32_t step = 0;
 
-    pexp_err = pexp_init();
-    if (pexp_err != PEXP_OK) {
-        printf("Error - failed to initialise RP2040 expander device, error: %d\n", pexp_err);
+    rpexp_err = rpexp_init();
+    if (rpexp_err != RPEXP_OK) {
+        printf("Error - failed to initialise RP2040 expander device, error: %d\n", rpexp_err);
         goto end_tests;
     }
 
     step = 1;
-    pexp_err = pexp_gpio_block_enable(true);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_gpio_block_enable(true);
+    if (rpexp_err) goto end_tests;
 
     step = 2;
-    pexp_err = pexp_gpio_init(TEST_TOGGLE_PIN);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_gpio_init(TEST_TOGGLE_PIN);
+    if (rpexp_err) goto end_tests;
 
     step = 3;
-    pexp_err = pexp_gpio_set_dir(TEST_TOGGLE_PIN, GPIO_DIR_OUT);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_gpio_set_dir(TEST_TOGGLE_PIN, GPIO_DIR_OUT);
+    if (rpexp_err) goto end_tests;
 
     step = 4;
-    pexp_err = pexp_gpio_set(TEST_TOGGLE_PIN);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_gpio_set(TEST_TOGGLE_PIN);
+    if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
     step = 5;
-    pexp_err = pexp_clock_gpio_init(25, GPIO_CLKOUT_CLK_REF, 500000);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_clock_gpio_init(25, GPIO_CLKOUT_CLK_REF, 500000);
+    if (rpexp_err) goto end_tests;
 
     step = 6;
-    pexp_err = pexp_clock_gpio_init(21, GPIO_CLKOUT_CLK_REF, 1);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_clock_gpio_init(21, GPIO_CLKOUT_CLK_REF, 1);
+    if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
     step = 10;
-    pexp_err = pexp_gpio_hi_block_enable(true);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_gpio_hi_block_enable(true);
+    if (rpexp_err) goto end_tests;
 
     step = 11;
-    pexp_err = pexp_gpio_hi_init(PUSH_BUTTON_INPUT_PIN);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_gpio_hi_init(PUSH_BUTTON_INPUT_PIN);
+    if (rpexp_err) goto end_tests;
 
     step = 12;
-    pexp_err = pexp_gpio_hi_set_dir(PUSH_BUTTON_INPUT_PIN, GPIO_DIR_IN);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_gpio_hi_set_dir(PUSH_BUTTON_INPUT_PIN, GPIO_DIR_IN);
+    if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
@@ -127,8 +127,8 @@ int main() {
         for (i = 0; i < RDWR_BUFF_SIZE_WORDS; i++) {
             rdwr_buffer[i] = prand32_galois();
         }
-        pexp_err = pexp_block_write32(RAM_START + ram_offset, rdwr_buffer, RDWR_BUFF_SIZE_WORDS);
-        if (pexp_err) goto end_tests;
+        rpexp_err = rpexp_block_write32(RAM_START + ram_offset, rdwr_buffer, RDWR_BUFF_SIZE_WORDS);
+        if (rpexp_err) goto end_tests;
 
         ram_offset += (4 * RDWR_BUFF_SIZE_WORDS);
     }
@@ -137,13 +137,13 @@ int main() {
     lfsr32 = LFSR32_SEED;  // re-seed for checking
 
     for (ram_offset = 0; ram_offset < (4 * RAM_TEST_LENGTH_WORDS); ) {
-        pexp_err = pexp_block_read32(RAM_START + ram_offset, rdwr_buffer, RDWR_BUFF_SIZE_WORDS);
-        if (pexp_err) goto end_tests;
+        rpexp_err = rpexp_block_read32(RAM_START + ram_offset, rdwr_buffer, RDWR_BUFF_SIZE_WORDS);
+        if (rpexp_err) goto end_tests;
 
-        for (i = 0; i < RDWR_BUFF_SIZE_WORDS && pexp_err == PEXP_OK; i++) {
+        for (i = 0; i < RDWR_BUFF_SIZE_WORDS && rpexp_err == RPEXP_OK; i++) {
             if (rdwr_buffer[i] != prand32_galois()) {
                 printf("read verify failed at ram_offset: %" PRIX32 ", index: %" PRIX32 "\n", ram_offset, i);
-                pexp_err = PEXP_ERR_TEST;
+                rpexp_err = RPEXP_ERR_TEST;
                 goto end_tests;
             }
         }
@@ -154,11 +154,11 @@ int main() {
 
     step = 20;  // get ROSC freq measurement
 
-    pexp_err = pexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+    if (rpexp_err) goto end_tests;
 
-    pexp_err = pexp_rosc_get_div(&rosc_div);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_rosc_get_div(&rosc_div);
+    if (rpexp_err) goto end_tests;
 
     printf("ROSC clock freq (Hz): %" PRId32 "\n", rosc_postdiv_freq_hz);
     printf("ROSC divider setting: %" PRId32 "\n", rosc_div);
@@ -167,55 +167,55 @@ int main() {
 
     step = 25;
 
-    pexp_err = pexp_rosc_set_freq_ab_bits(0);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_rosc_set_freq_ab_bits(0);
+    if (rpexp_err) goto end_tests;
 
     for (int i = 0; i < 25; i++) {
 
-        pexp_err = pexp_rosc_get_freq_ab_bits(&freq_bits);
-        if (pexp_err) goto end_tests;
+        rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
+        if (rpexp_err) goto end_tests;
 
-        pexp_err = pexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
-        if (pexp_err) goto end_tests;
+        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+        if (rpexp_err) goto end_tests;
 
         printf("ROSC freq setting: 0x%08" PRIX32 ", ROSC clock freq (Hz): %" PRId32 "\n", freq_bits, rosc_postdiv_freq_hz*16);
 
-        freq_bits = pexp_rosc_inc_freq_ab_bits(freq_bits);
+        freq_bits = rpexp_rosc_inc_freq_ab_bits(freq_bits);
 
-        pexp_err = pexp_rosc_set_freq_ab_bits(freq_bits);
-        if (pexp_err) goto end_tests;
+        rpexp_err = rpexp_rosc_set_freq_ab_bits(freq_bits);
+        if (rpexp_err) goto end_tests;
     }
 
     step = 26;
 
     for (int i = 0; i < 25; i++) {
 
-        pexp_err = pexp_rosc_get_freq_ab_bits(&freq_bits);
-        if (pexp_err) goto end_tests;
+        rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
+        if (rpexp_err) goto end_tests;
 
-        pexp_err = pexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
-        if (pexp_err) goto end_tests;
+        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+        if (rpexp_err) goto end_tests;
 
         printf("ROSC freq setting: 0x%08" PRIX32 ", ROSC clock freq (Hz): %" PRId32 "\n", freq_bits, rosc_postdiv_freq_hz*16);
 
-        freq_bits = pexp_rosc_dec_freq_ab_bits(freq_bits);
+        freq_bits = rpexp_rosc_dec_freq_ab_bits(freq_bits);
 
-        pexp_err = pexp_rosc_set_freq_ab_bits(freq_bits);
-        if (pexp_err) goto end_tests;
+        rpexp_err = rpexp_rosc_set_freq_ab_bits(freq_bits);
+        if (rpexp_err) goto end_tests;
     }
 
     //------------------------------------------------------------------------
 
     step = 30;  // set new ROSC clock freq
 
-    pexp_err = pexp_rosc_set_faster_postdiv_clock_freq(48*1000*1000, &rosc_postdiv_freq_hz);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_rosc_set_faster_postdiv_clock_freq(48*1000*1000, &rosc_postdiv_freq_hz);
+    if (rpexp_err) goto end_tests;
 
-    pexp_err = pexp_rosc_get_div(&rosc_div);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_rosc_get_div(&rosc_div);
+    if (rpexp_err) goto end_tests;
 
-    pexp_err = pexp_rosc_get_freq_ab_bits(&freq_bits);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
+    if (rpexp_err) goto end_tests;
 
     printf("ROSC clock freq (Hz): %" PRId32 "\n", rosc_postdiv_freq_hz);
     printf("ROSC divider setting: %" PRId32 "\n", rosc_div);
@@ -224,39 +224,39 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 35;
-    pexp_err = pexp_adc_block_enable(true);
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_adc_block_enable(true);
+    if (rpexp_err) goto end_tests;
 
     step = 36;
-    pexp_err = pexp_adc_init();
-    if (pexp_err) goto end_tests;
+    rpexp_err = rpexp_adc_init();
+    if (rpexp_err) goto end_tests;
 
     step = 37;
     read_chip_temperature();
-    if (pexp_err) goto end_tests;
+    if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
-    if (pexp_err == PEXP_OK) {
+    if (rpexp_err == RPEXP_OK) {
         printf("LED flash loop, press 'BOOTSEL' button to end tests...\n");
         step = 99;
 
         while (1) {
 
-            pexp_err = pexp_gpio_toggle(TEST_TOGGLE_PIN);
-            if (pexp_err) goto end_tests;
+            rpexp_err = rpexp_gpio_toggle(TEST_TOGGLE_PIN);
+            if (rpexp_err) goto end_tests;
 
             (void) usleep(50000);
 
-            data = pexp_gpio_hi_get_all();
+            data = rpexp_gpio_hi_get_all();
 
             if (data == (uint32_t)-1) {
-                pexp_err = PEXP_ERR_TEST;
+                rpexp_err = RPEXP_ERR_TEST;
             }
             else if (0 == ((1ul << PUSH_BUTTON_INPUT_PIN) & data)) {
 
-                pexp_err = pexp_gpio_clr(TEST_TOGGLE_PIN);
-                if (pexp_err) goto end_tests;
+                rpexp_err = rpexp_gpio_clr(TEST_TOGGLE_PIN);
+                if (rpexp_err) goto end_tests;
                 printf("Button pressed!\n");
                 break;
             }
@@ -266,16 +266,16 @@ int main() {
     //------------------------------------------------------------------------
 
 end_tests:
-    if (pexp_err == PEXP_OK) {
+    if (rpexp_err == RPEXP_OK) {
         printf("Success - demo code completed all steps\n\n");
     }
     else {
-        printf("Error - demo code failed on step %" PRId32 ", error: %d\n\n", step, pexp_err);
+        printf("Error - demo code failed on step %" PRId32 ", error: %d\n\n", step, rpexp_err);
     }
 
     //------------------------------------------------------------------------
 
-    return pexp_err;
+    return rpexp_err;
 }
 
 
@@ -287,7 +287,7 @@ static float read_onboard_temperature(const char unit) {
 
     uint16_t adc_result;
 
-    if (0 == pexp_adc_read(&adc_result)) {
+    if (0 == rpexp_adc_read(&adc_result)) {
 
         float adc = (float) adc_result * conversionFactor;
         float tempC = 27.0f - (adc - 0.706f) / 0.001721f;
@@ -305,21 +305,21 @@ static float read_onboard_temperature(const char unit) {
 /* Choose 'C' for Celsius or 'F' for Fahrenheit. */
 #define TEMPERATURE_UNITS 'C'
 
-static pexp_err_t read_chip_temperature(void) {
+static rpexp_err_t read_chip_temperature(void) {
 
     /* The hardware AD converter is already initialised, enable
      * the onboard temperature sensor and select its channel
      */
-    pexp_err_t pexp_err = pexp_adc_set_temp_sensor_enabled(true);
+    rpexp_err_t rpexp_err = rpexp_adc_set_temp_sensor_enabled(true);
 
-    if (pexp_err == PEXP_OK) {
-        pexp_err = pexp_adc_select_input(4);
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_adc_select_input(4);
     }
 
-    if (pexp_err == PEXP_OK) {
+    if (rpexp_err == RPEXP_OK) {
         float temperature = read_onboard_temperature(TEMPERATURE_UNITS);
         printf("Onboard temperature = %.02f %c\n", temperature, TEMPERATURE_UNITS);
     }
 
-    return pexp_err;
+    return rpexp_err;
 }
