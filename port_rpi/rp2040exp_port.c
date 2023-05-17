@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * Port specific functions for an RPi host
+ * Helper functions for an RPi host
  */
 
 #include <rp2040exp_port.h>
@@ -18,40 +18,13 @@
 
 
 static const char *chipname = "gpiochip0";
+
 static struct gpiod_chip *chip = NULL;
+
 static struct gpiod_line *hswclk;
 static struct gpiod_line *hswdio;
 
-
-static void inline swdio_as_output(bool out) {
-    gpiod_line_release(hswdio);
-    if (out) {
-        (void) gpiod_line_request_output(hswdio, "swdio", 0);
-    } else {
-        (void) gpiod_line_request_input(hswdio, "swdio");
-    }
-}
-
-static void inline set_swdio(bool swdio) {
-    (void) gpiod_line_set_value(hswdio, swdio);
-}
-
-static void inline set_swclk(bool swclk) {
-    (void) gpiod_line_set_value(hswclk, swclk);
-}
-
-static bool inline get_swdio(void) {
-    return gpiod_line_get_value(hswdio);
-}
-
-// libgpiod is complicated enough so we don't need any [extra] delay here
-#define delay_half_clock() ((void) 0)
-
-//----------------------------------------------------------------------------
-
-// Module API
-
-rpexp_err_t port_swd_init_gpios(void) {
+static rpexp_err_t init_swd_gpios(void) {
 
     if (!chip) {
         chip = gpiod_chip_open_by_name(chipname);
@@ -80,65 +53,111 @@ rpexp_err_t port_swd_init_gpios(void) {
 }
 
 
-void port_swd_put_bits(const uint8_t *txb, int n_bits) {
-    uint8_t shifter;
-
-    swdio_as_output(1);
-
-    for (unsigned int i = 0; i < n_bits; i++) {
-        if (i % 8 == 0) {
-            shifter = txb[i / 8];
-        } else {
-            shifter >>= 1;
-        }
-
-        set_swdio(shifter & 1u);
-        delay_half_clock();
-        set_swclk(1);
-        delay_half_clock();
-        set_swclk(0);
+static void inline set_swdio_as_output(bool out) {
+    gpiod_line_release(hswdio);
+    if (out) {
+        (void) gpiod_line_request_output(hswdio, "swdio", 0);
+    } else {
+        (void) gpiod_line_request_input(hswdio, "swdio");
     }
 }
 
 
-void port_swd_get_bits(uint8_t *rxb, int n_bits) {
-    uint8_t shifter;
+static void inline set_swdio(bool swdio) {
+    (void) gpiod_line_set_value(hswdio, swdio);
+}
 
-    swdio_as_output(0);
 
-    for (unsigned int i = 0; i < n_bits; i++) {
+static void inline set_swclk(bool swclk) {
+    (void) gpiod_line_set_value(hswclk, swclk);
+}
 
-        delay_half_clock();
-        uint8_t sample = get_swdio();
-        set_swclk(1);
 
-        delay_half_clock();
-        set_swclk(0);
+static bool inline get_swdio(void) {
+    return gpiod_line_get_value(hswdio);
+}
 
-        shifter >>= 1;
-        if (sample) {
-            shifter |= (1 << 7);
+
+static void inline delay_half_clock(void) {
+    // libgpiod is complicated enough so we don't need any [extra] delay here
+}
+
+
+#ifdef DEBUG_SWD_ON_GPIOS  // debug GPIO helpers
+static struct gpiod_line *hspicsn = NULL;
+static struct gpiod_line *hrxed   = NULL;
+
+static void inline dbg_gpio_init(void) {
+
+    if (!chip) {
+        chip = gpiod_chip_open_by_name(chipname);
+        if (!chip) {
+            return;
         }
-        if (i % 8 == 7)
-            rxb[i / 8] = shifter;
     }
 
-    if (n_bits % 8 != 0) {
-        rxb[n_bits / 8] = shifter >> (8 - n_bits % 8);
+    hspicsn = gpiod_chip_get_line(chip, DBG_GPIO_SPI_CSN);
+    hrxed   = gpiod_chip_get_line(chip, DBG_GPIO_RXED);
+
+    if (!hspicsn || !hrxed) {
+        return;
+    }
+
+    if (0 != gpiod_line_request_output(hspicsn, "spicsn", 1)) {
+        return;
+    }
+
+    if (0 != gpiod_line_request_output(hrxed, "rxed", 0)) {
+        return;
     }
 }
 
 
-void port_swd_hiz_clocks(int n_bits) {
+static void inline dbg_gpio_set(bool pin, bool high) {
+    struct gpiod_line *hpin = NULL;
 
-    swdio_as_output(0);
-
-    for (unsigned int i = 0; i < n_bits; i++) {
-        delay_half_clock();
-        set_swclk(1);
-        delay_half_clock();
-        set_swclk(0);
+    if (pin == DBG_GPIO_SPI_CSN) {
+        hpin = hspicsn;
+    } else if (pin == DBG_GPIO_RXED) {
+        hpin = hrxed;
     }
+
+    if (!hpin) {
+        return;
+    }
+
+    if (high) {
+        (void) gpiod_line_set_value(hpin, 1);
+    } else {
+        (void) gpiod_line_set_value(hpin, 0);
+    }
+}
+#endif  // DEBUG_SWD_ON_GPIOS
+
+//----------------------------------------------------------------------------
+
+static const swdbb_helpers_t swdbb_helpers =
+{
+    .init_swd_gpios      = init_swd_gpios,
+    .set_swdio_as_output = set_swdio_as_output,
+    .set_swdio           = set_swdio,
+    .set_swclk           = set_swclk,
+    .get_swdio           = get_swdio,
+    .delay_half_clock    = delay_half_clock
+
+#ifdef DEBUG_SWD_ON_GPIOS  // debug GPIO helpers
+  , .dbg_gpio_init      = dbg_gpio_init
+  , .dbg_gpio_set       = dbg_gpio_set
+#endif
+};
+
+//----------------------------------------------------------------------------
+
+// Module API
+
+// The function returns the address of the structure with the SWD helper function pointers in it.
+const swdbb_helpers_t *port_get_swdbb_helpers(void) {
+    return &swdbb_helpers;
 }
 
 

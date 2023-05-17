@@ -255,7 +255,7 @@ static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_postdiv_clock_hz,
     uint32_t freq_delta, last_delta;
 
     // Firstly, trim ROSC fully _down_ in frequency
-    rpexp_err_t rpexp_err = rpexp_rosc_clear_all_freq_ab_bits();
+    rpexp_err_t rpexp_err = rpexp_rosc_zero_all_freq_ab_bits();
 
     freq_bits = last_bits_setting = 0;
 
@@ -294,12 +294,12 @@ static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_postdiv_clock_hz,
 }
 
 
-static rpexp_err_t private_rosc_set_freq_ab_bits(uint32_t freq32) {
+static rpexp_err_t private_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 
-    rpexp_err_t rpexp_err = rpexp_write32(_reg(rosc_hw->freqa), (ROSC_FREQA_PASSWD_VALUE_PASS << ROSC_FREQA_PASSWD_LSB) | (freq32 & 0xfffful));
+    rpexp_err_t rpexp_err = rpexp_write32(_reg(rosc_hw->freqa), (ROSC_FREQA_PASSWD_VALUE_PASS << ROSC_FREQA_PASSWD_LSB) | (freq_bits32 & 0xfffful));
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_write32(_reg(rosc_hw->freqb), (ROSC_FREQB_PASSWD_VALUE_PASS << ROSC_FREQB_PASSWD_LSB) | (freq32 >> 16ul));
+        rpexp_err = rpexp_write32(_reg(rosc_hw->freqb), (ROSC_FREQB_PASSWD_VALUE_PASS << ROSC_FREQB_PASSWD_LSB) | (freq_bits32 >> 16ul));
     }
 
     if (rpexp_err == RPEXP_OK) {
@@ -841,13 +841,13 @@ rpexp_err_t rpexp_adc_gpio_init(uint32_t gpio) {
 }
 
 
-rpexp_err_t rpexp_adc_select_input(uint32_t input) {
+rpexp_err_t rpexp_adc_select_input(uint32_t channel) {
 
-    if (input >= NUM_ADC_CHANNELS) {
+    if (channel >= NUM_ADC_CHANNELS) {
         return RPEXP_ERR_API_ARG;
     }
 
-    return rpexp_write_hw_mask(_reg(adc_hw->cs), input << ADC_CS_AINSEL_LSB, ADC_CS_AINSEL_BITS);
+    return rpexp_write_hw_mask(_reg(adc_hw->cs), channel << ADC_CS_AINSEL_LSB, ADC_CS_AINSEL_BITS);
 }
 
 
@@ -884,6 +884,11 @@ rpexp_err_t rpexp_adc_read(uint16_t *padc) {
 
     uint32_t escape;
     uint32_t adc_rd_regs;
+
+    if (!padc) {
+        return RPEXP_ERR_API_ARG;
+    }
+
     rpexp_err_t rpexp_err = rpexp_hw_set_bits(_reg(adc_hw->cs), ADC_CS_START_ONCE_BITS);
 
     for (escape = 0; escape <= ADC_ESCAPE_COUNT && rpexp_err == RPEXP_OK; escape++) {
@@ -893,10 +898,7 @@ rpexp_err_t rpexp_adc_read(uint16_t *padc) {
         if (rpexp_err == RPEXP_OK && (adc_rd_regs & ADC_CS_READY_BITS)) {
 
             rpexp_err = rpexp_read32(_reg(adc_hw->result), &adc_rd_regs);
-
-            if (rpexp_err == RPEXP_OK) {
-                *padc = (uint16_t) (adc_rd_regs  & 0x0000FFFFul);
-            }
+            *padc = (uint16_t) (adc_rd_regs  & 0x0000FFFFul);
             break;
         }
     }
@@ -906,7 +908,7 @@ rpexp_err_t rpexp_adc_read(uint16_t *padc) {
     }
 
     if (rpexp_err != RPEXP_OK) {
-        *padc = 0;
+        *padc = 0;  // overwrite failed reads
     }
 
     return rpexp_err;
@@ -984,9 +986,13 @@ rpexp_err_t rpexp_rosc_get_div(uint32_t *pdiv) {
 }
 
 
-rpexp_err_t rpexp_rosc_get_freq_ab_bits(uint32_t *pfreq) {
+rpexp_err_t rpexp_rosc_get_freq_ab_bits(uint32_t *pfreq_bits32) {
 
     uint32_t freqa, freqb;
+
+    if (!pfreq_bits32) {
+        return RPEXP_ERR_API_ARG;
+    }
 
     rpexp_err_t rpexp_err = rpexp_read32(_reg(rosc_hw->freqa), &freqa);
 
@@ -995,16 +1001,16 @@ rpexp_err_t rpexp_rosc_get_freq_ab_bits(uint32_t *pfreq) {
     }
 
     if (rpexp_err == RPEXP_OK) {
-        *pfreq = ((freqb << 16)  | (freqa & 0xfffful));
+        *pfreq_bits32 = ((freqb << 16)  | (freqa & 0xfffful));
     }
 
     return rpexp_err;
 }
 
 
-rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq32) {
+rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 
-    rpexp_err_t rpexp_err = private_rosc_set_freq_ab_bits(freq32);
+    rpexp_err_t rpexp_err = private_rosc_set_freq_ab_bits(freq_bits32);
 
     if (rpexp_err == RPEXP_OK) {
         // REstart timing for ROSC frequency measurement
@@ -1015,7 +1021,7 @@ rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq32) {
 }
 
 
-rpexp_err_t rpexp_rosc_clear_all_freq_ab_bits(void) {
+rpexp_err_t rpexp_rosc_zero_all_freq_ab_bits(void) {
 
     uint32_t freq_bits;
 
@@ -1129,7 +1135,7 @@ rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdi
     uint32_t new_rosc_freq_hz;
 
     // Firstly, trim ROSC fully _down_ in frequency
-    rpexp_err_t rpexp_err = rpexp_rosc_clear_all_freq_ab_bits();
+    rpexp_err_t rpexp_err = rpexp_rosc_zero_all_freq_ab_bits();
 
     if (rpexp_err == RPEXP_OK) {
         rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);

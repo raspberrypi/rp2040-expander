@@ -28,6 +28,7 @@
 #define TEST_TOGGLE_PIN         15ul
 #define PUSH_BUTTON_INPUT_PIN   1 // HI GPIO 1
 
+#define TEMPERATURE_FORMAT      'C'
 
 #define RDWR_BUFF_SIZE_WORDS    2048ul
 // Note: This can't be longer than the RP2040 RAM size, expressed as a 32-bit word count
@@ -51,7 +52,8 @@ static uint32_t prand32_galois(void) {
     return lfsr32;
 }
 
-static rpexp_err_t read_chip_temperature(void);
+static rpexp_err_t read_adc_gpio_voltage(uint32_t channel);
+static rpexp_err_t read_chip_temperature(float *ptemp);
 
 
 int main() {
@@ -195,8 +197,26 @@ int main() {
     if (rpexp_err) goto end_tests;
 
     step = 32;
-    read_chip_temperature();
+    rpexp_err = read_adc_gpio_voltage(0);  // GPIO26
     if (rpexp_err) goto end_tests;
+
+    step = 33;
+
+    float temperature;
+    read_chip_temperature(&temperature);
+    if (rpexp_err) goto end_tests;
+
+    printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
+
+    read_chip_temperature(&temperature);
+    if (rpexp_err) goto end_tests;
+
+    printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
+
+    read_chip_temperature(&temperature);
+    if (rpexp_err) goto end_tests;
+
+    printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
 
     //------------------------------------------------------------------------
 
@@ -236,52 +256,62 @@ end_tests:
         printf("Error - demo code failed on step %" PRId32 ", error: %d\n\n", step, rpexp_err);
     }
 
-    //------------------------------------------------------------------------
+    return rpexp_err;
+
+}  // main()
+
+
+//----------------------------------------------------------------------------
+
+
+static rpexp_err_t read_adc_gpio_voltage(uint32_t channel) {
+
+    uint16_t adc_result;
+
+    rpexp_err_t rpexp_err = rpexp_adc_select_input(channel);
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_adc_read(&adc_result);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        uint16_t mV = adc_result * 3300 / 4095;
+        printf("ADC reading: %d, voltage (mV): %d\n", adc_result, mV);
+    }
 
     return rpexp_err;
 }
 
 
-// These functions borrowed from: pico-examples/adc/onboard_temperature
-static float read_onboard_temperature(const char unit) {
+// This functionality borrowed from: pico-examples/adc/onboard_temperature
+static rpexp_err_t read_chip_temperature(float *ptemp) {
 
-    /* 12-bit conversion, assume max value == ADC_VREF == 3.3 V */
+    // 12-bit conversion, assume max value == ADC_VREF == 3.3 V
     const float conversionFactor = 3.3f / (1 << 12);
-
     uint16_t adc_result;
 
-    if (0 == rpexp_adc_read(&adc_result)) {
-
-        float adc = (float) adc_result * conversionFactor;
-        float tempC = 27.0f - (adc - 0.706f) / 0.001721f;
-
-        if (unit == 'C') {
-            return tempC;
-        } else if (unit == 'F') {
-            return tempC * 9 / 5 + 32;
-        }
-    }
-
-    return -1.0f;
-}
-
-/* Choose 'C' for Celsius or 'F' for Fahrenheit. */
-#define TEMPERATURE_UNITS 'C'
-
-static rpexp_err_t read_chip_temperature(void) {
-
-    /* The hardware AD converter is already initialised, enable
-     * the onboard temperature sensor and select its channel
-     */
+    // The hardware AD converter should already be initialised,
+    // enable the onboard temperature sensor and select its channel
     rpexp_err_t rpexp_err = rpexp_adc_set_temp_sensor_enabled(true);
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_adc_select_input(4);
+        rpexp_err = rpexp_adc_select_input(4);  // termperature
     }
 
     if (rpexp_err == RPEXP_OK) {
-        float temperature = read_onboard_temperature(TEMPERATURE_UNITS);
-        printf("Onboard temperature = %.02f %c\n", temperature, TEMPERATURE_UNITS);
+        rpexp_err = rpexp_adc_read(&adc_result);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+
+        float adc = (float) adc_result * conversionFactor;
+        *ptemp= 27.0f - (adc - 0.706f) / 0.001721f;
+
+        if (TEMPERATURE_FORMAT == 'F') {
+            *ptemp *= 9 / 5 + 32;
+        }
+
+        rpexp_err = rpexp_adc_set_temp_sensor_enabled(false);
     }
 
     return rpexp_err;
