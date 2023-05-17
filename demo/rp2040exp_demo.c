@@ -155,76 +155,46 @@ int main() {
     step = 20;  // get ROSC freq measurement
     rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     if (rpexp_err) goto end_tests;
-    printf("Initi ROSC system clock freq (Hz): %" PRId32 "\n", rosc_postdiv_freq_hz);
 
-    //------------------------------------------------------------------------
+    printf("Boot ROSC clock frequency (Hz):  %" PRId32 "\n", rosc_postdiv_freq_hz);
 
-    step = 25;
-    rpexp_err = rpexp_rosc_set_freq_ab_bits(0);
-    if (rpexp_err) goto end_tests;
+    step = 25;  // set new ROSC clock freq
 
-    for (int i = 0; i < 25; i++) {
+#define NEW_ROSC_CLK_FREQ   (48*1000*1000ul)
 
-        rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
-        if (rpexp_err) goto end_tests;
-
-        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
-        if (rpexp_err) goto end_tests;
-
-        printf("ROSC freq setting: 0x%08" PRIX32 ", ROSC clock freq (Hz): %" PRId32 "\n", freq_bits, rosc_postdiv_freq_hz*16);
-
-        freq_bits = rpexp_rosc_inc_freq_ab_bits(freq_bits);
-
-        rpexp_err = rpexp_rosc_set_freq_ab_bits(freq_bits);
-        if (rpexp_err) goto end_tests;
-    }
-
-    step = 26;
-
-    for (int i = 0; i < 25; i++) {
-
-        rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
-        if (rpexp_err) goto end_tests;
-
-        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
-        if (rpexp_err) goto end_tests;
-
-        printf("ROSC freq setting: 0x%08" PRIX32 ", ROSC clock freq (Hz): %" PRId32 "\n", freq_bits, rosc_postdiv_freq_hz*16);
-
-        freq_bits = rpexp_rosc_dec_freq_ab_bits(freq_bits);
-
-        rpexp_err = rpexp_rosc_set_freq_ab_bits(freq_bits);
-        if (rpexp_err) goto end_tests;
-    }
-
-    //------------------------------------------------------------------------
-
-    step = 30;  // set new ROSC clock freq
-
-    rpexp_err = rpexp_rosc_set_faster_postdiv_clock_freq(48*1000*1000, &rosc_postdiv_freq_hz);
-    if (rpexp_err) goto end_tests;
-
-    rpexp_err = rpexp_rosc_get_div(&rosc_div);
+    rpexp_err = rpexp_rosc_set_faster_postdiv_clock_freq(NEW_ROSC_CLK_FREQ, &rosc_postdiv_freq_hz);
     if (rpexp_err) goto end_tests;
 
     rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
     if (rpexp_err) goto end_tests;
 
-    printf("ROSC clock freq (Hz): %" PRId32 "\n", rosc_postdiv_freq_hz);
-    printf("ROSC divider setting: %" PRId32 "\n", rosc_div);
-    printf("ROSC freq bits a/b:   %" PRIX32 "\n", freq_bits);
+    rpexp_err = rpexp_rosc_get_div(&rosc_div);
+    if (rpexp_err) goto end_tests;
+
+    printf("Requested ROSC clock freq (Hz):  %" PRId32 "\n", NEW_ROSC_CLK_FREQ);
+    printf("Resulting ROSC clock freq (Hz):  %" PRId32 "\n", rosc_postdiv_freq_hz);
+
+    // integer maths to create a 'part-per thousand' metic
+    rosc_postdiv_freq_hz *= 20;
+    uint32_t result_ppk = rosc_postdiv_freq_hz / (NEW_ROSC_CLK_FREQ / 100);
+    result_ppk += 1; // round
+    result_ppk /= 2;
+
+    printf("Accuracy metric, parts per 1000: %" PRId32 "\n", result_ppk);
+    printf("ROSC frequency control bits a/b: %" PRIX32 "\n", freq_bits);
+    printf("ROSC (internal) divider setting: %" PRId32 "\n", rosc_div);
 
     //------------------------------------------------------------------------
 
-    step = 35;
+    step = 30;
     rpexp_err = rpexp_adc_block_enable(true);
     if (rpexp_err) goto end_tests;
 
-    step = 36;
+    step = 31;
     rpexp_err = rpexp_adc_init();
     if (rpexp_err) goto end_tests;
 
-    step = 37;
+    step = 32;
     read_chip_temperature();
     if (rpexp_err) goto end_tests;
 
