@@ -294,17 +294,12 @@ static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_postdiv_clock_hz,
 }
 
 
-static rpexp_err_t private_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
+static rpexp_err_t common_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 
     rpexp_err_t rpexp_err = rpexp_write32(_reg(rosc_hw->freqa), (ROSC_FREQA_PASSWD_VALUE_PASS << ROSC_FREQA_PASSWD_LSB) | (freq_bits32 & 0xfffful));
 
     if (rpexp_err == RPEXP_OK) {
         rpexp_err = rpexp_write32(_reg(rosc_hw->freqb), (ROSC_FREQB_PASSWD_VALUE_PASS << ROSC_FREQB_PASSWD_LSB) | (freq_bits32 >> 16ul));
-    }
-
-    if (rpexp_err == RPEXP_OK) {
-        // REstart timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
     }
 
     return RPEXP_OK;
@@ -1010,7 +1005,7 @@ rpexp_err_t rpexp_rosc_get_freq_ab_bits(uint32_t *pfreq_bits32) {
 
 rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 
-    rpexp_err_t rpexp_err = private_rosc_set_freq_ab_bits(freq_bits32);
+    rpexp_err_t rpexp_err = common_rosc_set_freq_ab_bits(freq_bits32);
 
     if (rpexp_err == RPEXP_OK) {
         // REstart timing for ROSC frequency measurement
@@ -1023,18 +1018,19 @@ rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 
 rpexp_err_t rpexp_rosc_zero_all_freq_ab_bits(void) {
 
-    uint32_t freq_bits;
+    uint32_t freq_bits, starting_freq_bits;
 
     rpexp_err_t rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
 
-    // zero the freq a/b bits, one but at a time to avoid glitches
-    while (rpexp_err == RPEXP_OK && freq_bits) {
+    starting_freq_bits = freq_bits;
 
+    // zero the freq a/b bits, one bit at a time to avoid glitches
+    while (rpexp_err == RPEXP_OK && freq_bits) {
         freq_bits = rpexp_rosc_dec_freq_ab_bits(freq_bits);
-        rpexp_err = private_rosc_set_freq_ab_bits(freq_bits);
+        rpexp_err = common_rosc_set_freq_ab_bits(freq_bits);
     }
 
-    if (rpexp_err == RPEXP_OK) {
+    if (rpexp_err == RPEXP_OK && freq_bits != starting_freq_bits) {
         // REstart timing for ROSC frequency measurement
         rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
     }

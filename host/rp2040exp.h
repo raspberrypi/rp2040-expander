@@ -14,7 +14,7 @@
 #define TICK_GENERATOR_CYCLES   2
 
 // This affects the frequency measurement resolution
-#define MIN_ROSC_FREQ_SAMPLE_TIME_US    5000
+#define MIN_ROSC_FREQ_SAMPLE_TIME_US    100000ul
 
 
 // Return error status codes
