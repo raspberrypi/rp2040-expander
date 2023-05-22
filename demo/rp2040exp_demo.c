@@ -188,20 +188,31 @@ int main() {
 
     //------------------------------------------------------------------------
 
-    step = 30;
+    step = 30;  // Initialise UARTs
+    rpexp_err = rpexp_uart_enable(uart0_hw, true);
+    if (rpexp_err) goto end_tests;
+
+    rpexp_err = rpexp_uart_enable(uart1_hw, true);
+    if (rpexp_err) goto end_tests;
+
+    //rpexp_err = rpexp_uart_enable((uart_hw_t *)77, true);
+    if (rpexp_err) goto end_tests;
+
+    //------------------------------------------------------------------------
+
+    step = 35;
     rpexp_err = rpexp_adc_block_enable(true);
     if (rpexp_err) goto end_tests;
 
-    step = 31;
+    step = 36;
     rpexp_err = rpexp_adc_init();
     if (rpexp_err) goto end_tests;
 
-    step = 32;
+    step = 37;
     rpexp_err = read_adc_gpio_voltage(0);  // GPIO26
     if (rpexp_err) goto end_tests;
 
-    step = 33;
-
+    step = 38;
     float temperature;
     read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;

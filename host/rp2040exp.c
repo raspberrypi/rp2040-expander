@@ -1172,3 +1172,66 @@ rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdi
 
     return rpexp_err;
 }
+
+
+rpexp_err_t rpexp_uart_enable(uart_inst_t *uart, bool enable) {
+
+    if (uart == uart0) {
+        return peripheral_enable(enable, RESETS_RESET_UART0_BITS);
+    } else if  (uart == uart1) {
+        return peripheral_enable(enable, RESETS_RESET_UART1_BITS);
+    } else {
+        return RPEXP_ERR_API_ARG;
+    }
+}
+
+
+rpexp_err_t rpexp_uart_init(uart_inst_t *uart, uint32_t baudrate, uint32_t data_bits, uint32_t stop_bits) {
+
+}
+
+
+rpexp_err_t rpexp_uart_deinit(uart_inst_t *uart) {
+
+}
+
+
+rpexp_err_t rpexp_uart_is_writable(uart_inst_t *uart) {
+
+}
+
+rpexp_err_t rpexp_uart_is_readable(uart_inst_t *uart) {
+
+}
+
+rpexp_err_t rpexp_uart_write_blocking(uart_inst_t *uart, const uint8_t *src, uint32_t len) {
+
+}
+
+rpexp_err_t rpexp_uart_read_blocking(uart_inst_t *uart, uint8_t *dst, uint32_t len) {
+
+}
+
+rpexp_err_t rpexp_uart_putc(uart_inst_t *uart, char c) {
+
+}
+
+rpexp_err_t rpexp_uart_puts(uart_inst_t *uart, const char *s) {
+
+}
+
+rpexp_err_t rpexp_uart_getc(uart_inst_t *uart) {
+
+}
+
+rpexp_err_t rpexp_uart_set_break(uart_inst_t *uart, bool en) {
+
+}
+
+
+
+#define uart0_hw ((uart_hw_t *)UART0_BASE)
+#define uart1_hw ((uart_hw_t *)UART1_BASE)
+
+
+

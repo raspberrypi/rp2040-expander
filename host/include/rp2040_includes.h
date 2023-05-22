@@ -23,6 +23,7 @@
 #include <hardware/structs/systick.h>
 #include <hardware/structs/watchdog.h>
 #include <hardware/structs/timer.h>
+#include <hardware/structs/uart.h>
 
 
 // Arm Cortex 'Debug Halting Control and Status Register'

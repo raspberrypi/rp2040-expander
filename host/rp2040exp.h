@@ -57,6 +57,15 @@ typedef enum {
     GPIO_CLKOUT_CLK_REF = 10
 } rpexp_clkout_t;
 
+typedef struct uart_inst uart_inst_t;
+
+#define uart0_hw ((uart_hw_t *)UART0_BASE)
+#define uart1_hw ((uart_hw_t *)UART1_BASE)
+
+
+#define uart0 ((uart_inst_t *)uart0_hw) ///< Identifier for UART instance 0
+#define uart1 ((uart_inst_t *)uart1_hw) ///< Identifier for UART instance 1
+
 /*
 typedef enum {
     GPIO_SLEWRATE_SLOW = 0,
@@ -744,7 +753,7 @@ rpexp_err_t rpexp_rosc_zero_all_freq_ab_bits(void);
  * same value will be returned.
  *
  * \param freq32        Combined A and B bit setting !Note comments above!
- * \returns uint32_t    Incremented (or saturated) freq A/B bit trim setting
+ * \returns uint32_t    Incremented (or maximum) freq A/B bit trim setting
  */
 uint32_t rpexp_rosc_inc_freq_ab_bits(uint32_t freq32);
 
@@ -883,6 +892,20 @@ rpexp_err_t rpexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32
  */
 rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdiv_clock_hz,
                                                      uint32_t *measured_rosc_postdiv_clock_hz);
+
+//----------------------------------------------------------------------------
+
+rpexp_err_t rpexp_uart_enable(uart_inst_t *uart, bool enable);
+rpexp_err_t rpexp_uart_init(uart_inst_t *uart, uint32_t baudrate, uint32_t data_bits, uint32_t stop_bits);
+rpexp_err_t rpexp_uart_deinit(uart_inst_t *uart);
+rpexp_err_t rpexp_uart_is_writable(uart_inst_t *uart);
+rpexp_err_t rpexp_uart_is_readable(uart_inst_t *uart);
+rpexp_err_t rpexp_uart_write_blocking(uart_inst_t *uart, const uint8_t *src, uint32_t len);
+rpexp_err_t rpexp_uart_read_blocking(uart_inst_t *uart, uint8_t *dst, uint32_t len);
+rpexp_err_t rpexp_uart_putc(uart_inst_t *uart, char c);
+rpexp_err_t rpexp_uart_puts(uart_inst_t *uart, const char *s);
+rpexp_err_t rpexp_uart_uart_getc(uart_inst_t *uart);
+rpexp_err_t rpexp_uart_set_break(uart_inst_t *uart, bool en);
 
 //----------------------------------------------------------------------------
 
