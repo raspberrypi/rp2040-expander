@@ -875,12 +875,11 @@ rpexp_err_t rpexp_adc_set_temp_sensor_enabled(bool enable) {
 }
 
 
-rpexp_err_t rpexp_adc_read(uint16_t *padc) {
+rpexp_err_t rpexp_adc_read(uint32_t *padcreading) {
 
     uint32_t escape;
-    uint32_t adc_rd_regs;
 
-    if (!padc) {
+    if (!padcreading) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -888,12 +887,11 @@ rpexp_err_t rpexp_adc_read(uint16_t *padc) {
 
     for (escape = 0; escape <= ADC_ESCAPE_COUNT && rpexp_err == RPEXP_OK; escape++) {
 
-        rpexp_err = rpexp_read32(_reg(adc_hw->cs), &adc_rd_regs);
+        rpexp_err = rpexp_read32(_reg(adc_hw->cs), padcreading);
 
-        if (rpexp_err == RPEXP_OK && (adc_rd_regs & ADC_CS_READY_BITS)) {
+        if (rpexp_err == RPEXP_OK && (*padcreading & ADC_CS_READY_BITS)) {
 
-            rpexp_err = rpexp_read32(_reg(adc_hw->result), &adc_rd_regs);
-            *padc = (uint16_t) (adc_rd_regs  & 0x0000FFFFul);
+            rpexp_err = rpexp_read32(_reg(adc_hw->result), padcreading);
             break;
         }
     }
@@ -903,7 +901,7 @@ rpexp_err_t rpexp_adc_read(uint16_t *padc) {
     }
 
     if (rpexp_err != RPEXP_OK) {
-        *padc = 0;  // overwrite failed reads
+        *padcreading = 0ul;  // overwrite failed reads
     }
 
     return rpexp_err;

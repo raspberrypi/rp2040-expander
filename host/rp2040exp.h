@@ -596,10 +596,10 @@ rpexp_err_t rpexp_adc_set_temp_sensor_enabled(bool enable);
  *
  *  Performs an ADC conversion, waits for the result, and then returns it.
  *
- * \param padc          Pointer to 16-bit word to receive the ADC reading
+ * \param padcreading   Pointer to 32-bit word to receive the ADC reading
  * \returns rpexp_err_t Operation result
  */
-rpexp_err_t rpexp_adc_read(uint16_t *padc);
+rpexp_err_t rpexp_adc_read(uint32_t *padcreading);
 
 //----------------------------------------------------------------------------
 

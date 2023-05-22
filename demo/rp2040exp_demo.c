@@ -266,7 +266,7 @@ end_tests:
 
 static rpexp_err_t read_adc_gpio_voltage(uint32_t channel) {
 
-    uint16_t adc_result;
+    uint32_t adc_result;
 
     rpexp_err_t rpexp_err = rpexp_adc_select_input(channel);
 
@@ -275,8 +275,8 @@ static rpexp_err_t read_adc_gpio_voltage(uint32_t channel) {
     }
 
     if (rpexp_err == RPEXP_OK) {
-        uint16_t mV = adc_result * 3300 / 4095;
-        printf("ADC reading: %d, voltage (mV): %d\n", adc_result, mV);
+        uint32_t mV = adc_result * 3300ul / 4095ul;
+        printf("ADC reading: %d, voltage (mV): %ld\n", adc_result, mV);
     }
 
     return rpexp_err;
@@ -288,7 +288,7 @@ static rpexp_err_t read_chip_temperature(float *ptemp) {
 
     // 12-bit conversion, assume max value == ADC_VREF == 3.3 V
     const float conversionFactor = 3.3f / (1 << 12);
-    uint16_t adc_result;
+    uint32_t adc_result;
 
     // The hardware AD converter should already be initialised,
     // enable the onboard temperature sensor and select its channel
