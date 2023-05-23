@@ -16,15 +16,18 @@
 
 #define ROSC_MAX_FREQ_KHZ               125000ul  // could probably be more
 
+static const uart_hw_t *uart_addr[NUM_UART] = { uart0_hw, uart1_hw };
+
 
 // struct for ROSC frequency measurement
 typedef struct {
     uint64_t time_us;
     uint64_t tick_count;
-    uint32_t system_clock_frequency_khz;
 } rosc_time_n_count_t;
 
-static rosc_time_n_count_t rosc_time_count_freq = { 0 }; // vital
+// both vital:
+static rosc_time_n_count_t rosc_time_count_freq = { 0 };
+static uint32_t system_clock_frequency_khz = 0;
 
 
 static rpexp_err_t reset_blocks(uint32_t mask) {
@@ -71,30 +74,6 @@ static rpexp_err_t peripheral_enable(bool enable, uint32_t mask) {
 }
 
 
-static rpexp_err_t set_gpio_function(uint32_t gpio, enum gpio_function new_func) {
-
-    rpexp_err_t rpexp_err = RPEXP_OK;
-    uint32_t current_func;
-
-    if (new_func != GPIO_FUNC_NULL) {
-        // Assigning a new function: First check if the GPIO is free
-        rpexp_err = rpexp_read32(_reg(iobank0_hw->io[(gpio)].ctrl), &current_func);
-
-        if (rpexp_err == RPEXP_OK) {
-            if (current_func != GPIO_FUNC_NULL) {
-                rpexp_err = RPEXP_ERR_IN_USE;
-            }
-        }
-    }
-
-    if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_write32(_reg(iobank0_hw->io[(gpio)].ctrl), new_func);
-    }
-
-    return rpexp_err;
-}
-
-
 static rpexp_err_t _clock_gpio_init_int_frac(uint32_t gpio, rpexp_clkout_t clk_src, uint32_t div_int, uint8_t div_frac) {
 
     uint32_t gpclk;
@@ -118,7 +97,7 @@ static rpexp_err_t _clock_gpio_init_int_frac(uint32_t gpio, rpexp_clkout_t clk_s
 
     // Set the gpio pin to gpclock function
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = set_gpio_function(gpio, GPIO_FUNC_GPCK);
+        rpexp_err = rpexp_gpio_set_function(gpio, GPIO_FUNC_GPCK);
     }
 
     return rpexp_err;
@@ -310,6 +289,7 @@ static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_clock_khz,  uint3
     }
 
     if (rpexp_err == RPEXP_OK) {
+        // update for best accuracy
         rpexp_err = rpexp_rosc_measure_clock_freq_khz(measured_rosc_clock_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     }
 
@@ -326,6 +306,115 @@ static rpexp_err_t common_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
     }
 
     return RPEXP_OK;
+}
+
+
+static rpexp_err_t uart_set_baudrate(uart_chan_t uart, uint32_t req_baudrate, uint32_t *actual_baudrate) {
+
+    if (!actual_baudrate) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    *actual_baudrate = 0;
+
+    if (!system_clock_frequency_khz) {
+        return RPEXP_ERR_CLOCK_FREQ_UNKNOWN;
+    }
+
+    uint32_t system_clock_frequency_hz = system_clock_frequency_khz * 1000ul;
+
+    uint32_t baud_rate_div = (8ul * system_clock_frequency_hz / req_baudrate);
+    uint32_t baud_ibrd = baud_rate_div >> 7;
+    uint32_t baud_fbrd;
+
+    if (baud_ibrd == 0) {
+        baud_ibrd = 1;
+        baud_fbrd = 0;
+    } else if (baud_ibrd >= 65535) {
+        baud_ibrd = 65535;
+        baud_fbrd = 0;
+    }  else {
+        baud_fbrd = ((baud_rate_div & 0x7f) + 1) / 2;
+    }
+
+    // Load PL011's baud divisor registers
+    rpexp_err_t rpexp_err = rpexp_write32(_reg(uart_addr[uart]->ibrd), baud_ibrd);
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(uart_addr[uart]->fbrd), baud_fbrd);
+    }
+
+    // PL011 needs a (dummy) line control register write to latch in the
+    // divisors. We don't want to actually change LCR contents here.
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_hw_set_bits(_reg(uart_addr[uart]->lcr_h), 0);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        *actual_baudrate = (4 * system_clock_frequency_hz) / (64 * baud_ibrd + baud_fbrd);
+    }
+
+    return rpexp_err;
+}
+
+
+static rpexp_err_t uart_set_format(uart_chan_t uart, uint32_t data_bits, uint32_t stop_bits, uart_parity_type_t parity) {
+
+    if (uart >= NUM_UART) {
+        return RPEXP_ERR_API_ARG;
+    }
+    if (data_bits < 5 || data_bits > 8) {
+        return RPEXP_ERR_API_ARG;
+    }
+    if (stop_bits < 1 || stop_bits > 2) {
+        return RPEXP_ERR_API_ARG;
+    }
+    if (parity > UART_ODD_PARITY) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    return rpexp_write_hw_mask(_reg(uart_addr[uart]->lcr_h),
+                   ((data_bits - 5u) << UART_UARTLCR_H_WLEN_LSB) |
+                   ((stop_bits - 1u) << UART_UARTLCR_H_STP2_LSB) |
+                   (bool_to_bit(parity != UART_NO_PARITY) << UART_UARTLCR_H_PEN_LSB) |
+                   (bool_to_bit(parity == UART_EVEN_PARITY) << UART_UARTLCR_H_EPS_LSB),
+                   UART_UARTLCR_H_WLEN_BITS |
+                   UART_UARTLCR_H_STP2_BITS |
+                   UART_UARTLCR_H_PEN_BITS |
+                   UART_UARTLCR_H_EPS_BITS);
+}
+
+
+static rpexp_err_t uart_set_hw_flow(uart_chan_t uart, bool cts, bool rts) {
+
+    if (uart >= NUM_UART) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    return rpexp_write_hw_mask(_reg(uart_addr[uart]->cr),
+        (bool_to_bit(cts) << UART_UARTCR_CTSEN_LSB) | (bool_to_bit(rts) << UART_UARTCR_RTSEN_LSB),
+        UART_UARTCR_RTSEN_BITS | UART_UARTCR_CTSEN_BITS);
+}
+
+
+static rpexp_err_t uart_check_fr_bit_action(uart_chan_t uart, uint32_t bit_mask_to_check, bool *actionable) {
+
+    if (uart >= NUM_UART) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    uint32_t uart_fr;
+    rpexp_err_t rpexp_err = rpexp_read32(_reg(uart_addr[uart]->fr), &uart_fr);
+
+    if (rpexp_err == RPEXP_OK) {
+        if (uart_fr & bit_mask_to_check) {
+            *actionable = false;
+        } else {
+            *actionable = true;
+        }
+    }
+
+    return rpexp_err;
 }
 
 //----------------------------------------------------------------------------
@@ -347,6 +436,30 @@ rpexp_err_t rpexp_init(void) {
 
 //----------------------------------------------------------------------------
 
+rpexp_err_t rpexp_gpio_set_function(uint32_t gpio, enum gpio_function new_func) {
+
+    rpexp_err_t rpexp_err = RPEXP_OK;
+    uint32_t current_func;
+
+    if (new_func != GPIO_FUNC_NULL) {
+        // Assigning a new function: First check if the GPIO is free
+        rpexp_err = rpexp_read32(_reg(iobank0_hw->io[(gpio)].ctrl), &current_func);
+
+        if (rpexp_err == RPEXP_OK) {
+            if (current_func != GPIO_FUNC_NULL) {
+                rpexp_err = RPEXP_ERR_IN_USE;
+            }
+        }
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(iobank0_hw->io[(gpio)].ctrl), new_func);
+    }
+
+    return rpexp_err;
+}
+
+
 rpexp_err_t rpexp_gpio_block_enable(bool enable) {
 
     return peripheral_enable(enable, RESETS_RESET_PADS_BANK0_BITS | RESETS_RESET_IO_BANK0_BITS);
@@ -364,7 +477,7 @@ rpexp_err_t rpexp_gpio_init(uint32_t gpio) {
     }
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = set_gpio_function(gpio, GPIO_FUNC_SIO);
+        rpexp_err = rpexp_gpio_set_function(gpio, GPIO_FUNC_SIO);
     }
 
     return rpexp_err;
@@ -387,7 +500,7 @@ rpexp_err_t rpexp_gpio_init_mask(uint32_t mask) {
 
 
 rpexp_err_t rpexp_gpio_deinit(uint32_t gpio) {
-    return set_gpio_function(gpio, GPIO_FUNC_NULL);
+    return rpexp_gpio_set_function(gpio, GPIO_FUNC_NULL);
 }
 
 
@@ -612,7 +725,7 @@ rpexp_err_t rpexp_block_write32(uint32_t address, const uint32_t *pdata, uint32_
 
 rpexp_err_t rpexp_write_hw_mask(uint32_t addr, uint32_t values, uint32_t write_mask) {
 
-    if (addr < SYSINFO_BASE) {
+    if (addr < SYSINFO_BASE || addr >= DMA_BASE) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -632,7 +745,7 @@ rpexp_err_t rpexp_write_hw_mask(uint32_t addr, uint32_t values, uint32_t write_m
 
 rpexp_err_t rpexp_hw_set_bits(uint32_t addr, uint32_t mask) {
 
-    if (addr < SYSINFO_BASE) {
+    if (addr < SYSINFO_BASE || addr >= DMA_BASE) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -642,7 +755,7 @@ rpexp_err_t rpexp_hw_set_bits(uint32_t addr, uint32_t mask) {
 
 rpexp_err_t rpexp_hw_clear_bits(uint32_t addr, uint32_t mask) {
 
-    if (addr < SYSINFO_BASE) {
+    if (addr < SYSINFO_BASE || addr >= DMA_BASE) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -652,7 +765,7 @@ rpexp_err_t rpexp_hw_clear_bits(uint32_t addr, uint32_t mask) {
 
 rpexp_err_t rpexp_hw_xor_bits(uint32_t addr, uint32_t mask) {
 
-    if (addr < SYSINFO_BASE) {
+    if (addr < SYSINFO_BASE || addr >= DMA_BASE) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -844,7 +957,7 @@ rpexp_err_t rpexp_adc_gpio_init(uint32_t gpio) {
     }
 
     // Select NULL function to make output driver hi-Z
-    rpexp_err_t rpexp_err = set_gpio_function(gpio, GPIO_FUNC_NULL);
+    rpexp_err_t rpexp_err = rpexp_gpio_set_function(gpio, GPIO_FUNC_NULL);
 
     // Disable digital pulls and digital receiver
     if (rpexp_err == RPEXP_OK) {
@@ -1135,11 +1248,12 @@ rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz, uint32_t 
         uint64_t delta_tick_count = current_rosc_time_n_count.tick_count - rosc_time_count_freq.tick_count;
         *rosc_freq_khz = (uint32_t) ((delta_tick_count * (uint64_t) 1000ull * (uint64_t) TICK_GENERATOR_CYCLES) / delta_time_us);
 
-        // record frequency for any subsequent baudrate setting etc.
-        rosc_time_count_freq.system_clock_frequency_khz = *rosc_freq_khz;
-
-        // update the static datapoint for any subsequent calculation(s)
+        // update the static datapoint for (any) subsequent calculation(s)
         rosc_time_count_freq = current_rosc_time_n_count;
+
+        /// record system frequency for subsequent baudrate setting etc.
+        system_clock_frequency_khz = *rosc_freq_khz;
+
     }
 
     return rpexp_err;
@@ -1197,120 +1311,90 @@ rpexp_err_t rpexp_rosc_set_faster_clock_freq(uint32_t target_rosc_clock_khz, uin
     return rpexp_err;
 }
 
-#if 0
-rpexp_err_t rpexp_uart_enable(uart_hw_t *uart, bool enable) {
 
-    if (uart != uart0 && uart != uart1) {
+rpexp_err_t rpexp_uart_enable(uart_chan_t uart, bool enable) {
+
+    if (uart >= NUM_UART) {
         return RPEXP_ERR_API_ARG;
     }
 
     rpexp_err_t rpexp_err = peripheral_clock_init(enable);
 
     if (rpexp_err == RPEXP_OK) {
-        if (uart == uart0) {
+        if (uart == UART0) {
             return peripheral_enable(enable, RESETS_RESET_UART0_BITS);
+        } else {
+            return peripheral_enable(enable, RESETS_RESET_UART1_BITS);
         }
-    } else {
-        return peripheral_enable(enable, RESETS_RESET_UART1_BITS);
     }
 }
 
 
-static rpexp_err_t uart_set_baudrate(uart_hw_t *uart, uint32_t req_baudrate, uint32_t *actual_baudrate) {
+#include <stdio.h>
 
-    if (!actual_baudrate) {
-        return RPEXP_ERR_API_ARG;
-    }
+rpexp_err_t rpexp_uart_init(uart_chan_t uart,
+                            uint32_t baudrate,
+                            uint32_t data_bits,
+                            uint32_t stop_bits,
+                            uart_parity_type_t parity,
+                            bool cts, bool rts) {
 
-    *actual_baudrate = 0;
+    uint32_t actual_baudrate;  // FIXME DEBUG TODO remove
 
-    if (!rosc_time_count_freq.system_clock_frequency_khz) {
-        return RPEXP_ERR_CLOCK_FREQ_UNKNOWN;
-    }
+    rpexp_err_t rpexp_err = uart_set_baudrate(uart, baudrate, &actual_baudrate);
 
-    uint32_t baud_rate_div = (8 * rosc_time_count_freq.system_clock_frequency_khz / req_baudrate);
-    uint32_t baud_ibrd = baud_rate_div >> 7;
-    uint32_t baud_fbrd;
-
-    if (baud_ibrd == 0) {
-        baud_ibrd = 1;
-        baud_fbrd = 0;
-    } else if (baud_ibrd >= 65535) {
-        baud_ibrd = 65535;
-        baud_fbrd = 0;
-    }  else {
-        baud_fbrd = ((baud_rate_div & 0x7f) + 1) / 2;
-    }
-
-    // Load PL011's baud divisor registers
-    rpexp_err_t rpexp_err = rpexp_write32(_reg(uart->ibrd), baud_ibrd);
+    printf("actual_baudrate: %d\n", actual_baudrate);
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_write32(_reg(uart->fbrd), baud_fbrd);
-    }
-
-    // PL011 needs a (dummy) line control register write to latch in the
-    // divisors. We don't want to actually change LCR contents here.
-    if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_hw_set_bits(_reg(uart->lcr_h), 0);
+        rpexp_err = uart_set_format(uart, data_bits, stop_bits, parity);
     }
 
     if (rpexp_err == RPEXP_OK) {
-        *actual_baudrate = (4 * rosc_time_count_freq.system_clock_frequency_khz) / (64 * baud_ibrd + baud_fbrd);
+        rpexp_err = uart_set_hw_flow(uart, cts, rts);
     }
 
     return rpexp_err;
 }
 
 
-rpexp_err_t rpexp_uart_init(uart_hw_t *uart, uint32_t baudrate, uint32_t data_bits, uint32_t stop_bits) {
-
-    uint32_t actual_baudrate;
-
-    rpexp_err_t rpexp_err = uart_set_baudrate(uart, baudrate, &actual_baudrate);
-
-
+rpexp_err_t rpexp_uart_deinit(uart_chan_t uart) {
 
 }
 
 
-rpexp_err_t rpexp_uart_deinit(uart_hw_t *uart) {
+rpexp_err_t rpexp_uart_is_writable(uart_chan_t uart, bool *writeable) {
 
+    return uart_check_fr_bit_action(uart, UART_UARTFR_TXFF_BITS, writeable);
 }
 
 
-rpexp_err_t rpexp_uart_is_writable(uart_hw_t *uart) {
+rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable) {
+
+    // PL011 doesn't expose levels directly, so return values are only true and false
+    return uart_check_fr_bit_action(uart, UART_UARTFR_RXFE_BITS, readable);
+}
+
+
+rpexp_err_t rpexp_uart_write_blocking(uart_chan_t uart, const uint8_t *src, uint32_t len) {
 
 }
 
-rpexp_err_t rpexp_uart_is_readable(uart_hw_t *uart) {
+rpexp_err_t rpexp_uart_read_blocking(uart_chan_t uart, uint8_t *dst, uint32_t len) {
 
 }
 
-rpexp_err_t rpexp_uart_write_blocking(uart_hw_t *uart, const uint8_t *src, uint32_t len) {
+rpexp_err_t rpexp_uart_putc(uart_chan_t uart, char c) {
 
 }
 
-rpexp_err_t rpexp_uart_read_blocking(uart_hw_t *uart, uint8_t *dst, uint32_t len) {
+rpexp_err_t rpexp_uart_puts(uart_chan_t uart, const char *s) {
 
 }
 
-rpexp_err_t rpexp_uart_putc(uart_hw_t *uart, char c) {
+rpexp_err_t rpexp_uart_getc(uart_chan_t uart) {
 
 }
 
-rpexp_err_t rpexp_uart_puts(uart_hw_t *uart, const char *s) {
+rpexp_err_t rpexp_uart_set_break(uart_chan_t uart, bool en) {
 
 }
-
-rpexp_err_t rpexp_uart_getc(uart_hw_t *uart) {
-
-}
-
-rpexp_err_t rpexp_uart_set_break(uart_hw_t *uart, bool en) {
-
-}
-
-#define uart0_hw ((uart_hw_t *)UART0_BASE)
-#define uart1_hw ((uart_hw_t *)UART1_BASE)
-#endif

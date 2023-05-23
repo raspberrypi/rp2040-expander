@@ -58,13 +58,26 @@ typedef enum {
     GPIO_CLKOUT_CLK_REF = 10
 } rpexp_clkout_t;
 
-/*
-#define uart0_hw ((uart_hw_t *)UART0_BASE)
-#define uart1_hw ((uart_hw_t *)UART1_BASE)
 
-#define uart0 (uart0_hw)    // Identifier for UART instance 0
-#define uart1 (uart1_hw)    // Identifier for UART instance 1
-*/
+typedef enum {
+    UART0 = 0,
+    UART1 = 1,
+    NUM_UART = 2
+} uart_chan_t;
+
+typedef enum {
+    UART_NO_PARITY = 0,
+    UART_EVEN_PARITY = 1,
+    UART_ODD_PARITY = 2
+} uart_parity_type_t;
+
+typedef enum {
+    UART_HW_FLOW_CNTL_NONE = 0,
+    UART_HW_FLOW_CNTL_RTS = 1,
+    UART_HW_FLOW_CNTL_CTS = 2,
+    UART_HW_FLOW_CNTL_RTS_CTS = 3,
+} uart_hw_flow_cntl_t;
+
 
 /*
 typedef enum {
@@ -86,6 +99,24 @@ typedef enum {
  * \returns rpexp_err_t Operation result
  */
 rpexp_err_t rpexp_init(void);
+
+
+/*! \brief Set the function of a GPIO pin: GPIO, UART, SPI etc.
+ *
+ * With the _exception_ of the rpexp_gpio_* and rpexp_gpio_hi_* APIs,
+ * which handle this automatically, the functional mode of a GPIO pin must
+ * be selected before use.
+ * The choices are defined by the 'gpio_function' enumeration and will typically
+ * be GPIO_FUNC_GPCK, GPIO_FUNC_UART etc.  Some choices are not legal such as XI
+ *
+ * All GPIO pins will be in the idle state, 'GPIO_FUNC_NULL', following system
+ * initialisation.
+ *
+ * \param gpio          GPIO number between 0 and 29
+ * \param new_func      GPIO function according to the gpio_function enum
+ * \returns rpexp_err_t Operation result
+ */
+rpexp_err_t rpexp_gpio_set_function(uint32_t gpio, enum gpio_function new_func);
 
 
 /*! \brief Enable or disable the GPIO HW
@@ -832,7 +863,8 @@ uint32_t rpexp_rosc_dec_freq_ab_bits(uint32_t freq32);
  *                      If 0, do not observe any minimum sample time criteria.
  * \returns rpexp_err_t Operation result
  */
-rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz, uint32_t min_sample_us);
+rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz,
+                                              uint32_t min_sample_us);
 
 
 /*! \brief Request and configure a revised, and faster, ROSC system clock frequency
@@ -891,26 +923,27 @@ rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz, uint32_t 
  * \returns rpexp_err_t Operation result
  */
 rpexp_err_t rpexp_rosc_set_faster_clock_freq(uint32_t target_rosc_clock_khz,
-                                                     uint32_t *measured_rosc_clock_khz);
+                                             uint32_t *measured_rosc_clock_khz);
 
 //----------------------------------------------------------------------------
 
-#if 0
-rpexp_err_t rpexp_uart_enable(uart_hw_t *uart, bool enable);
-rpexp_err_t rpexp_uart_init(uart_hw_t *uart,
+rpexp_err_t rpexp_uart_enable(uart_chan_t uart, bool enable);
+rpexp_err_t rpexp_uart_init(uart_chan_t uart,
                             uint32_t baudrate,
                             uint32_t data_bits,
-                            uint32_t stop_bits);
-rpexp_err_t rpexp_uart_deinit(uart_hw_t *uart);
-rpexp_err_t rpexp_uart_is_writable(uart_hw_t *uart);
-rpexp_err_t rpexp_uart_is_readable(uart_hw_t *uart);
-rpexp_err_t rpexp_uart_write_blocking(uart_hw_t *uart, const uint8_t *src, uint32_t len);
-rpexp_err_t rpexp_uart_read_blocking(uart_hw_t *uart, uint8_t *dst, uint32_t len);
-rpexp_err_t rpexp_uart_putc(uart_hw_t *uart, char c);
-rpexp_err_t rpexp_uart_puts(uart_hw_t *uart, const char *s);
-rpexp_err_t rpexp_uart_uart_getc(uart_hw_t *uart);
-rpexp_err_t rpexp_uart_set_break(uart_hw_t *uart, bool en);
-#endif
+                            uint32_t stop_bits,
+                            uart_parity_type_t parity,
+                            bool cts, bool rts);
+rpexp_err_t rpexp_uart_deinit(uart_chan_t uart);
+
+rpexp_err_t rpexp_uart_is_writable(uart_chan_t uart, bool *writeable);
+rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable);
+rpexp_err_t rpexp_uart_write_blocking(uart_chan_t uart, const uint8_t *src, uint32_t len);
+rpexp_err_t rpexp_uart_read_blocking(uart_chan_t uart, uint8_t *dst, uint32_t len);
+rpexp_err_t rpexp_uart_putc(uart_chan_t uart, char c);
+rpexp_err_t rpexp_uart_puts(uart_chan_t uart, const char *s);
+rpexp_err_t rpexp_uart_uart_getc(uart_chan_t uart);
+rpexp_err_t rpexp_uart_set_break(uart_chan_t uart, bool en);
 
 //----------------------------------------------------------------------------
 

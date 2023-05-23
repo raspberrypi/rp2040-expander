@@ -158,11 +158,11 @@ int main() {
     rpexp_err = rpexp_rosc_measure_clock_freq_khz(&target_rosc_clock_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     if (rpexp_err) goto end_tests;
 
-    printf("Boot ROSC clock frequency (Hz):  %" PRId32 "\n", target_rosc_clock_khz);
+    printf("Boot ROSC clock frequency (kHz): %" PRId32 "\n", target_rosc_clock_khz);
 
     step = 25;  // set new ROSC clock freq
 
-    for (uint32_t new_rosc_clk_freq_mhz = 4; new_rosc_clk_freq_mhz <= 60; new_rosc_clk_freq_mhz += 1) {
+    for (uint32_t new_rosc_clk_freq_mhz = 8; new_rosc_clk_freq_mhz <= 48; new_rosc_clk_freq_mhz += 8) {
 
         uint32_t new_rosc_clk_freq_khz = 1000ul * new_rosc_clk_freq_mhz;
 
@@ -178,7 +178,7 @@ int main() {
         printf("Requested ROSC clock freq (kHz): %5" PRId32 ", ", new_rosc_clk_freq_khz);
         printf("resulting freq: %5" PRId32 ", ", target_rosc_clock_khz);
 
-        // integer maths to create a 'part-per thousand' metic
+        // integer maths to create a 'part-per thousand' metric
         target_rosc_clock_khz *= 20;
         uint32_t result_ppk = target_rosc_clock_khz / (new_rosc_clk_freq_khz / 100);
         result_ppk += 1; // round
@@ -190,13 +190,38 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 30;  // Initialise UARTs
-    //rpexp_err = rpexp_uart_enable(uart0_hw, true);
+    rpexp_err = rpexp_uart_enable(UART0, true);
     if (rpexp_err) goto end_tests;
 
-    //rpexp_err = rpexp_uart_enable(uart1_hw, true);
+    step = 31;  // Initialise UARTs
+    rpexp_err = rpexp_uart_enable(UART1, true);
     if (rpexp_err) goto end_tests;
 
-    // uart0_hw, target_rosc_clock_khz, 115200, 8, 1
+    step = 32;  // Initialise UARTs
+    rpexp_err = rpexp_uart_init(UART0, 115200, 8, 1, UART_NO_PARITY, false, false);
+    if (rpexp_err) goto end_tests;
+
+    step = 33;  // Initialise UARTs
+    rpexp_err = rpexp_uart_init(UART1, 115200, 8, 1, UART_NO_PARITY, false, false);
+    if (rpexp_err) goto end_tests;
+
+
+ *  int main() {
+ *
+ *     // Initialise UART 0
+ *     uart_init(uart0, 115200);
+ *
+ *     // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
+ *     gpio_set_function(0, GPIO_FUNC_UART);
+ *     gpio_set_function(1, GPIO_FUNC_UART);
+ *
+ *     uart_puts(uart0, "Hello world!");
+
+
+
+
+
+
 
     //------------------------------------------------------------------------
 
