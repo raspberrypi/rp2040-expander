@@ -63,7 +63,7 @@ int main() {
     uint32_t i, ram_offset;
     uint32_t data;
     uint32_t freq_bits;
-    uint32_t target_rosc_clock_khz;
+    uint32_t rosc_clock_freq_khz;
     uint32_t rosc_div;
 
 #ifdef PICO_BUILD
@@ -155,10 +155,10 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 20;  // get ROSC freq measurement
-    rpexp_err = rpexp_rosc_measure_clock_freq_khz(&target_rosc_clock_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+    rpexp_err = rpexp_rosc_measure_clock_freq_khz(&rosc_clock_freq_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     if (rpexp_err) goto end_tests;
 
-    printf("Boot ROSC clock frequency (kHz): %" PRId32 "\n", target_rosc_clock_khz);
+    printf("Boot ROSC clock frequency (kHz): %" PRId32 "\n", rosc_clock_freq_khz);
 
     step = 25;  // set new ROSC clock freq
 
@@ -166,7 +166,7 @@ int main() {
 
         uint32_t new_rosc_clk_freq_khz = 1000ul * new_rosc_clk_freq_mhz;
 
-        rpexp_err = rpexp_rosc_set_faster_clock_freq(new_rosc_clk_freq_khz, &target_rosc_clock_khz);
+        rpexp_err = rpexp_rosc_set_faster_clock_freq(new_rosc_clk_freq_khz, &rosc_clock_freq_khz);
         if (rpexp_err) goto end_tests;
 
         rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
@@ -176,11 +176,11 @@ int main() {
         if (rpexp_err) goto end_tests;
 
         printf("Requested ROSC clock freq (kHz): %5" PRId32 ", ", new_rosc_clk_freq_khz);
-        printf("resulting freq: %5" PRId32 ", ", target_rosc_clock_khz);
+        printf("resulting freq: %5" PRId32 ", ", rosc_clock_freq_khz);
 
         // integer maths to create a 'part-per thousand' metric
-        target_rosc_clock_khz *= 20;
-        uint32_t result_ppk = target_rosc_clock_khz / (new_rosc_clk_freq_khz / 100);
+        rosc_clock_freq_khz *= 20;
+        uint32_t result_ppk = rosc_clock_freq_khz / (new_rosc_clk_freq_khz / 100);
         result_ppk += 1; // round
         result_ppk /= 2;
 
@@ -205,8 +205,12 @@ int main() {
     rpexp_err = rpexp_uart_init(UART1, 115200, 8, 1, UART_NO_PARITY, false, false);
     if (rpexp_err) goto end_tests;
 
+    step = 34;  // Initialise UARTs
+    const int8_t uart_gpio_list[] = {0, 1, 2, 3, 4, -1};
+    rpexp_err = rpexp_uart_assign_gpios(uart_gpio_list);
+    if (rpexp_err) goto end_tests;
 
- *  int main() {
+/*  int main() {
  *
  *     // Initialise UART 0
  *     uart_init(uart0, 115200);
@@ -216,12 +220,7 @@ int main() {
  *     gpio_set_function(1, GPIO_FUNC_UART);
  *
  *     uart_puts(uart0, "Hello world!");
-
-
-
-
-
-
+*/
 
     //------------------------------------------------------------------------
 

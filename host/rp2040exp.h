@@ -101,24 +101,6 @@ typedef enum {
 rpexp_err_t rpexp_init(void);
 
 
-/*! \brief Set the function of a GPIO pin: GPIO, UART, SPI etc.
- *
- * With the _exception_ of the rpexp_gpio_* and rpexp_gpio_hi_* APIs,
- * which handle this automatically, the functional mode of a GPIO pin must
- * be selected before use.
- * The choices are defined by the 'gpio_function' enumeration and will typically
- * be GPIO_FUNC_GPCK, GPIO_FUNC_UART etc.  Some choices are not legal such as XI
- *
- * All GPIO pins will be in the idle state, 'GPIO_FUNC_NULL', following system
- * initialisation.
- *
- * \param gpio          GPIO number between 0 and 29
- * \param new_func      GPIO function according to the gpio_function enum
- * \returns rpexp_err_t Operation result
- */
-rpexp_err_t rpexp_gpio_set_function(uint32_t gpio, enum gpio_function new_func);
-
-
 /*! \brief Enable or disable the GPIO HW
  *
  * Enable or disable the GPIO hardware.
@@ -935,7 +917,7 @@ rpexp_err_t rpexp_uart_init(uart_chan_t uart,
                             uart_parity_type_t parity,
                             bool cts, bool rts);
 rpexp_err_t rpexp_uart_deinit(uart_chan_t uart);
-
+rpexp_err_t rpexp_uart_assign_gpios(const int8_t *pgpio_list);
 rpexp_err_t rpexp_uart_is_writable(uart_chan_t uart, bool *writeable);
 rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable);
 rpexp_err_t rpexp_uart_write_blocking(uart_chan_t uart, const uint8_t *src, uint32_t len);

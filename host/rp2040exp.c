@@ -26,7 +26,7 @@ typedef struct {
 } rosc_time_n_count_t;
 
 // both vital:
-static rosc_time_n_count_t rosc_time_count_freq = { 0 };
+static rosc_time_n_count_t snapshot_rosc_time_n_count = { 0 };
 static uint32_t system_clock_frequency_khz = 0;
 
 
@@ -74,6 +74,30 @@ static rpexp_err_t peripheral_enable(bool enable, uint32_t mask) {
 }
 
 
+static rpexp_err_t set_gpio_function(uint32_t gpio, enum gpio_function new_func) {
+
+    rpexp_err_t rpexp_err = RPEXP_OK;
+    uint32_t current_func;
+
+    if (new_func != GPIO_FUNC_NULL) {
+        // Assigning a new function: First check if the GPIO is free
+        rpexp_err = rpexp_read32(_reg(iobank0_hw->io[(gpio)].ctrl), &current_func);
+
+        if (rpexp_err == RPEXP_OK) {
+            if (current_func != GPIO_FUNC_NULL) {
+                rpexp_err = RPEXP_ERR_IN_USE;
+            }
+        }
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(iobank0_hw->io[(gpio)].ctrl), new_func);
+    }
+
+    return rpexp_err;
+}
+
+
 static rpexp_err_t _clock_gpio_init_int_frac(uint32_t gpio, rpexp_clkout_t clk_src, uint32_t div_int, uint8_t div_frac) {
 
     uint32_t gpclk;
@@ -97,7 +121,7 @@ static rpexp_err_t _clock_gpio_init_int_frac(uint32_t gpio, rpexp_clkout_t clk_s
 
     // Set the gpio pin to gpclock function
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_gpio_set_function(gpio, GPIO_FUNC_GPCK);
+        rpexp_err = set_gpio_function(gpio, GPIO_FUNC_GPCK);
     }
 
     return rpexp_err;
@@ -213,7 +237,7 @@ static rpexp_err_t initial_clock_set(void) {
 
     if (rpexp_err == RPEXP_OK) {
         // start timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&rosc_time_count_freq);
+        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
     }
 
     // FIXME TODO HERE Work In Progress
@@ -436,30 +460,6 @@ rpexp_err_t rpexp_init(void) {
 
 //----------------------------------------------------------------------------
 
-rpexp_err_t rpexp_gpio_set_function(uint32_t gpio, enum gpio_function new_func) {
-
-    rpexp_err_t rpexp_err = RPEXP_OK;
-    uint32_t current_func;
-
-    if (new_func != GPIO_FUNC_NULL) {
-        // Assigning a new function: First check if the GPIO is free
-        rpexp_err = rpexp_read32(_reg(iobank0_hw->io[(gpio)].ctrl), &current_func);
-
-        if (rpexp_err == RPEXP_OK) {
-            if (current_func != GPIO_FUNC_NULL) {
-                rpexp_err = RPEXP_ERR_IN_USE;
-            }
-        }
-    }
-
-    if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_write32(_reg(iobank0_hw->io[(gpio)].ctrl), new_func);
-    }
-
-    return rpexp_err;
-}
-
-
 rpexp_err_t rpexp_gpio_block_enable(bool enable) {
 
     return peripheral_enable(enable, RESETS_RESET_PADS_BANK0_BITS | RESETS_RESET_IO_BANK0_BITS);
@@ -477,7 +477,7 @@ rpexp_err_t rpexp_gpio_init(uint32_t gpio) {
     }
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_gpio_set_function(gpio, GPIO_FUNC_SIO);
+        rpexp_err = set_gpio_function(gpio, GPIO_FUNC_SIO);
     }
 
     return rpexp_err;
@@ -500,7 +500,7 @@ rpexp_err_t rpexp_gpio_init_mask(uint32_t mask) {
 
 
 rpexp_err_t rpexp_gpio_deinit(uint32_t gpio) {
-    return rpexp_gpio_set_function(gpio, GPIO_FUNC_NULL);
+    return set_gpio_function(gpio, GPIO_FUNC_NULL);
 }
 
 
@@ -725,7 +725,7 @@ rpexp_err_t rpexp_block_write32(uint32_t address, const uint32_t *pdata, uint32_
 
 rpexp_err_t rpexp_write_hw_mask(uint32_t addr, uint32_t values, uint32_t write_mask) {
 
-    if (addr < SYSINFO_BASE || addr >= DMA_BASE) {
+    if (addr < SYSINFO_BASE /*|| addr >= DMA_BASE*/) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -745,7 +745,7 @@ rpexp_err_t rpexp_write_hw_mask(uint32_t addr, uint32_t values, uint32_t write_m
 
 rpexp_err_t rpexp_hw_set_bits(uint32_t addr, uint32_t mask) {
 
-    if (addr < SYSINFO_BASE || addr >= DMA_BASE) {
+    if (addr < SYSINFO_BASE /*|| addr >= DMA_BASE*/) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -755,7 +755,7 @@ rpexp_err_t rpexp_hw_set_bits(uint32_t addr, uint32_t mask) {
 
 rpexp_err_t rpexp_hw_clear_bits(uint32_t addr, uint32_t mask) {
 
-    if (addr < SYSINFO_BASE || addr >= DMA_BASE) {
+    if (addr < SYSINFO_BASE /*|| addr >= DMA_BASE*/) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -765,7 +765,7 @@ rpexp_err_t rpexp_hw_clear_bits(uint32_t addr, uint32_t mask) {
 
 rpexp_err_t rpexp_hw_xor_bits(uint32_t addr, uint32_t mask) {
 
-    if (addr < SYSINFO_BASE || addr >= DMA_BASE) {
+    if (addr < SYSINFO_BASE /*|| addr >= DMA_BASE*/) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -957,7 +957,7 @@ rpexp_err_t rpexp_adc_gpio_init(uint32_t gpio) {
     }
 
     // Select NULL function to make output driver hi-Z
-    rpexp_err_t rpexp_err = rpexp_gpio_set_function(gpio, GPIO_FUNC_NULL);
+    rpexp_err_t rpexp_err = set_gpio_function(gpio, GPIO_FUNC_NULL);
 
     // Disable digital pulls and digital receiver
     if (rpexp_err == RPEXP_OK) {
@@ -1091,7 +1091,7 @@ rpexp_err_t rpexp_rosc_set_div(uint32_t rosc_div) {
 
     if (rpexp_err == RPEXP_OK) {
         // REstart timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&rosc_time_count_freq);
+        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
     }
 }
 
@@ -1143,7 +1143,7 @@ rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 
     if (rpexp_err == RPEXP_OK) {
         // REstart timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&rosc_time_count_freq);
+        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
     }
 
     return RPEXP_OK;
@@ -1166,7 +1166,7 @@ rpexp_err_t rpexp_rosc_zero_all_freq_ab_bits(void) {
 
     if (rpexp_err == RPEXP_OK && freq_bits != starting_freq_bits) {
         // REstart timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&rosc_time_count_freq);
+        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
     }
 
     return rpexp_err;
@@ -1235,7 +1235,7 @@ rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz, uint32_t 
             break;
         }
 
-        delta_time_us = current_rosc_time_n_count.time_us - rosc_time_count_freq.time_us;
+        delta_time_us = current_rosc_time_n_count.time_us - snapshot_rosc_time_n_count.time_us;
 
         if (delta_time_us > (uint64_t) min_sample_us) {
             break;
@@ -1245,11 +1245,11 @@ rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz, uint32_t 
 
     if (rpexp_err == RPEXP_OK) {
 
-        uint64_t delta_tick_count = current_rosc_time_n_count.tick_count - rosc_time_count_freq.tick_count;
+        uint64_t delta_tick_count = current_rosc_time_n_count.tick_count - snapshot_rosc_time_n_count.tick_count;
         *rosc_freq_khz = (uint32_t) ((delta_tick_count * (uint64_t) 1000ull * (uint64_t) TICK_GENERATOR_CYCLES) / delta_time_us);
 
         // update the static datapoint for (any) subsequent calculation(s)
-        rosc_time_count_freq = current_rosc_time_n_count;
+        snapshot_rosc_time_n_count = current_rosc_time_n_count;
 
         /// record system frequency for subsequent baudrate setting etc.
         system_clock_frequency_khz = *rosc_freq_khz;
@@ -1352,6 +1352,31 @@ rpexp_err_t rpexp_uart_init(uart_chan_t uart,
     if (rpexp_err == RPEXP_OK) {
         rpexp_err = uart_set_hw_flow(uart, cts, rts);
     }
+
+    return rpexp_err;
+}
+
+
+rpexp_err_t rpexp_uart_assign_gpios(const int8_t *pgpio_list) {
+
+    if (!pgpio_list) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    rpexp_err_t rpexp_err = RPEXP_OK;
+
+    do {
+        int8_t gpio_num = *pgpio_list++;
+
+        if (gpio_num < 0) {
+            break;
+        }
+
+        uint32_t gpio = (uint32_t) gpio_num;
+
+        rpexp_err = set_gpio_function(gpio, GPIO_FUNC_UART);
+
+    } while (rpexp_err == RPEXP_OK);
 
     return rpexp_err;
 }
