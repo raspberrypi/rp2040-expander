@@ -26,13 +26,14 @@ typedef enum {
     RPEXP_ERR_DAP_FAULT = 4,
     RPEXP_ERR_DAP_TIMEOUT = 5,
     RPEXP_ERR_DAP_PARITY = 6,
-    RPEXP_ERR_API_ARG = 7,
-    RPEXP_ERR_NOT_INITED = 8,
-    RPEXP_ERR_IN_USE = 9,
-    RPEXP_ERR_RESET_TIMEOUT = 10,
-    RPEXP_ERR_ADC_TIMEOUT = 11,
-    RPEXP_ERR_TEST = 12,
-    RPEXP_ERR_UNSUPPORTED = 143
+    RPEXP_ERR_CLOCK_FREQ_UNKNOWN = 7,
+    RPEXP_ERR_API_ARG = 8,
+    RPEXP_ERR_NOT_INITED = 9,
+    RPEXP_ERR_IN_USE = 10,
+    RPEXP_ERR_RESET_TIMEOUT = 11,
+    RPEXP_ERR_ADC_TIMEOUT = 12,
+    RPEXP_ERR_TEST = 13,
+    RPEXP_ERR_UNSUPPORTED = 14
 } rpexp_err_t;
 
 
@@ -57,14 +58,13 @@ typedef enum {
     GPIO_CLKOUT_CLK_REF = 10
 } rpexp_clkout_t;
 
-typedef struct uart_inst uart_inst_t;
-
+/*
 #define uart0_hw ((uart_hw_t *)UART0_BASE)
 #define uart1_hw ((uart_hw_t *)UART1_BASE)
 
-
-#define uart0 ((uart_inst_t *)uart0_hw) ///< Identifier for UART instance 0
-#define uart1 ((uart_inst_t *)uart1_hw) ///< Identifier for UART instance 1
+#define uart0 (uart0_hw)    // Identifier for UART instance 0
+#define uart1 (uart1_hw)    // Identifier for UART instance 1
+*/
 
 /*
 typedef enum {
@@ -827,12 +827,12 @@ uint32_t rpexp_rosc_dec_freq_ab_bits(uint32_t freq32);
  * The ROSC divider ratio can be read using rpexp_rosc_get_div(), it will range
  * between 1 and 32, it has a power-up default value of 16.
  *
- * \param rosc_freq_hz  Pointer to 32-bit word to receive the ROSC clock freq in Hz
+ * \param rosc_freq_khz Pointer to 32-bit word to receive the ROSC clock freq in kHz
  * \param min_sample_us Observe minimum period (us) since start / last calculation.
  *                      If 0, do not observe any minimum sample time criteria.
  * \returns rpexp_err_t Operation result
  */
-rpexp_err_t rpexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32_t min_sample_us);
+rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz, uint32_t min_sample_us);
 
 
 /*! \brief Request and configure a revised, and faster, ROSC system clock frequency
@@ -886,26 +886,31 @@ rpexp_err_t rpexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32
  * divider stage; the actual ROSC frequency can be higher that the clock it generates
  * for system as a whole.
  *
- * \param target_rosc_postdiv_clock_hz  Pointer to 32-bit word to receive the ROSC clock freq in Hz
- * \param measured_rosc_postdiv_clock_hz  Pointer to 32-bit word to receive the ROSC clock freq in Hz
+ * \param target_rosc_clock_khz_khz Desired ROSC clock freq in lHz
+ * \param measured_rosc_postdiv_clock_khz Pointer to 32-bit word to receive the ROSC clock freq in kHz
  * \returns rpexp_err_t Operation result
  */
-rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdiv_clock_hz,
-                                                     uint32_t *measured_rosc_postdiv_clock_hz);
+rpexp_err_t rpexp_rosc_set_faster_clock_freq(uint32_t target_rosc_clock_khz,
+                                                     uint32_t *measured_rosc_clock_khz);
 
 //----------------------------------------------------------------------------
 
-rpexp_err_t rpexp_uart_enable(uart_inst_t *uart, bool enable);
-rpexp_err_t rpexp_uart_init(uart_inst_t *uart, uint32_t baudrate, uint32_t data_bits, uint32_t stop_bits);
-rpexp_err_t rpexp_uart_deinit(uart_inst_t *uart);
-rpexp_err_t rpexp_uart_is_writable(uart_inst_t *uart);
-rpexp_err_t rpexp_uart_is_readable(uart_inst_t *uart);
-rpexp_err_t rpexp_uart_write_blocking(uart_inst_t *uart, const uint8_t *src, uint32_t len);
-rpexp_err_t rpexp_uart_read_blocking(uart_inst_t *uart, uint8_t *dst, uint32_t len);
-rpexp_err_t rpexp_uart_putc(uart_inst_t *uart, char c);
-rpexp_err_t rpexp_uart_puts(uart_inst_t *uart, const char *s);
-rpexp_err_t rpexp_uart_uart_getc(uart_inst_t *uart);
-rpexp_err_t rpexp_uart_set_break(uart_inst_t *uart, bool en);
+#if 0
+rpexp_err_t rpexp_uart_enable(uart_hw_t *uart, bool enable);
+rpexp_err_t rpexp_uart_init(uart_hw_t *uart,
+                            uint32_t baudrate,
+                            uint32_t data_bits,
+                            uint32_t stop_bits);
+rpexp_err_t rpexp_uart_deinit(uart_hw_t *uart);
+rpexp_err_t rpexp_uart_is_writable(uart_hw_t *uart);
+rpexp_err_t rpexp_uart_is_readable(uart_hw_t *uart);
+rpexp_err_t rpexp_uart_write_blocking(uart_hw_t *uart, const uint8_t *src, uint32_t len);
+rpexp_err_t rpexp_uart_read_blocking(uart_hw_t *uart, uint8_t *dst, uint32_t len);
+rpexp_err_t rpexp_uart_putc(uart_hw_t *uart, char c);
+rpexp_err_t rpexp_uart_puts(uart_hw_t *uart, const char *s);
+rpexp_err_t rpexp_uart_uart_getc(uart_hw_t *uart);
+rpexp_err_t rpexp_uart_set_break(uart_hw_t *uart, bool en);
+#endif
 
 //----------------------------------------------------------------------------
 

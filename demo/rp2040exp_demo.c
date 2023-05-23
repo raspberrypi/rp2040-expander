@@ -63,7 +63,7 @@ int main() {
     uint32_t i, ram_offset;
     uint32_t data;
     uint32_t freq_bits;
-    uint32_t rosc_postdiv_freq_hz;
+    uint32_t target_rosc_clock_khz;
     uint32_t rosc_div;
 
 #ifdef PICO_BUILD
@@ -155,48 +155,48 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 20;  // get ROSC freq measurement
-    rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(&rosc_postdiv_freq_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+    rpexp_err = rpexp_rosc_measure_clock_freq_khz(&target_rosc_clock_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     if (rpexp_err) goto end_tests;
 
-    printf("Boot ROSC clock frequency (Hz):  %" PRId32 "\n", rosc_postdiv_freq_hz);
+    printf("Boot ROSC clock frequency (Hz):  %" PRId32 "\n", target_rosc_clock_khz);
 
     step = 25;  // set new ROSC clock freq
 
-#define NEW_ROSC_CLK_FREQ   (48*1000*1000ul)
+    for (uint32_t new_rosc_clk_freq_mhz = 4; new_rosc_clk_freq_mhz <= 60; new_rosc_clk_freq_mhz += 1) {
 
-    rpexp_err = rpexp_rosc_set_faster_postdiv_clock_freq(NEW_ROSC_CLK_FREQ, &rosc_postdiv_freq_hz);
-    if (rpexp_err) goto end_tests;
+        uint32_t new_rosc_clk_freq_khz = 1000ul * new_rosc_clk_freq_mhz;
 
-    rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
-    if (rpexp_err) goto end_tests;
+        rpexp_err = rpexp_rosc_set_faster_clock_freq(new_rosc_clk_freq_khz, &target_rosc_clock_khz);
+        if (rpexp_err) goto end_tests;
 
-    rpexp_err = rpexp_rosc_get_div(&rosc_div);
-    if (rpexp_err) goto end_tests;
+        rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
+        if (rpexp_err) goto end_tests;
 
-    printf("Requested ROSC clock freq (Hz):  %" PRId32 "\n", NEW_ROSC_CLK_FREQ);
-    printf("Resulting ROSC clock freq (Hz):  %" PRId32 "\n", rosc_postdiv_freq_hz);
+        rpexp_err = rpexp_rosc_get_div(&rosc_div);
+        if (rpexp_err) goto end_tests;
 
-    // integer maths to create a 'part-per thousand' metic
-    rosc_postdiv_freq_hz *= 20;
-    uint32_t result_ppk = rosc_postdiv_freq_hz / (NEW_ROSC_CLK_FREQ / 100);
-    result_ppk += 1; // round
-    result_ppk /= 2;
+        printf("Requested ROSC clock freq (kHz): %5" PRId32 ", ", new_rosc_clk_freq_khz);
+        printf("resulting freq: %5" PRId32 ", ", target_rosc_clock_khz);
 
-    printf("Accuracy metric, parts per 1000: %" PRId32 "\n", result_ppk);
-    printf("ROSC frequency control bits a/b: %" PRIX32 "\n", freq_bits);
-    printf("ROSC (internal) divider setting: %" PRId32 "\n", rosc_div);
+        // integer maths to create a 'part-per thousand' metic
+        target_rosc_clock_khz *= 20;
+        uint32_t result_ppk = target_rosc_clock_khz / (new_rosc_clk_freq_khz / 100);
+        result_ppk += 1; // round
+        result_ppk /= 2;
+
+        printf("accuracy metric, parts per 1000: %4" PRId32 "\n", result_ppk);
+    }
 
     //------------------------------------------------------------------------
 
     step = 30;  // Initialise UARTs
-    rpexp_err = rpexp_uart_enable(uart0_hw, true);
+    //rpexp_err = rpexp_uart_enable(uart0_hw, true);
     if (rpexp_err) goto end_tests;
 
-    rpexp_err = rpexp_uart_enable(uart1_hw, true);
+    //rpexp_err = rpexp_uart_enable(uart1_hw, true);
     if (rpexp_err) goto end_tests;
 
-    //rpexp_err = rpexp_uart_enable((uart_hw_t *)77, true);
-    if (rpexp_err) goto end_tests;
+    // uart0_hw, target_rosc_clock_khz, 115200, 8, 1
 
     //------------------------------------------------------------------------
 

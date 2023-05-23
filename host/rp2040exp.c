@@ -14,16 +14,17 @@
 #define RESET_ESCAPE_COUNT              10
 #define ADC_ESCAPE_COUNT                10
 
-#define ROSC_MAX_FREQ                   125000000ul  // could probably be more
+#define ROSC_MAX_FREQ_KHZ               125000ul  // could probably be more
 
 
 // struct for ROSC frequency measurement
 typedef struct {
     uint64_t time_us;
     uint64_t tick_count;
+    uint32_t system_clock_frequency_khz;
 } rosc_time_n_count_t;
 
-static rosc_time_n_count_t snapshot_rosc_time_n_count = { 0 };
+static rosc_time_n_count_t rosc_time_count_freq = { 0 }; // vital
 
 
 static rpexp_err_t reset_blocks(uint32_t mask) {
@@ -152,6 +153,27 @@ static rpexp_err_t set_gpio_hi_function(uint32_t higpio, enum gpio_function new_
 }
 
 
+static rpexp_err_t peripheral_clock_init(bool enable) {
+
+    rpexp_err_t rpexp_err = rpexp_hw_clear_bits(_reg(clocks_hw->clk[clk_peri].ctrl), CLOCKS_CLK_PERI_CTRL_ENABLE_BITS);
+
+    if (enable) {
+        if (rpexp_err == RPEXP_OK) {
+            rpexp_err = rpexp_write32(_reg(clocks_hw->clk[clk_peri].ctrl), // select source
+            (CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_ROSC_CLKSRC_PH << CLOCKS_CLK_PERI_CTRL_AUXSRC_LSB));
+        }
+        if (rpexp_err == RPEXP_OK) {
+            rpexp_err = rpexp_write32(_reg(clocks_hw->clk[clk_peri].div), 0x100);  // divide by 1.0
+        }
+        if (rpexp_err == RPEXP_OK) {
+            rpexp_err = rpexp_hw_set_bits(_reg(clocks_hw->clk[clk_peri].ctrl), CLOCKS_CLK_PERI_CTRL_ENABLE_BITS);
+        }
+    }
+
+    return rpexp_err;
+}
+
+
 static rpexp_err_t adc_clock_init(bool enable) {
 
     rpexp_err_t rpexp_err = rpexp_hw_clear_bits(_reg(clocks_hw->clk[clk_adc].ctrl), CLOCKS_CLK_ADC_CTRL_ENABLE_BITS);
@@ -212,7 +234,7 @@ static rpexp_err_t initial_clock_set(void) {
 
     if (rpexp_err == RPEXP_OK) {
         // start timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
+        rpexp_err = get_timespec_and_tickcount(&rosc_time_count_freq);
     }
 
     // FIXME TODO HERE Work In Progress
@@ -249,7 +271,7 @@ static rpexp_err_t set_gpio_input_enabled(uint32_t gpio, bool enable) {
 }
 
 
-static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_postdiv_clock_hz,  uint32_t *measured_rosc_postdiv_clock_hz) {
+static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_clock_khz,  uint32_t *measured_rosc_clock_khz) {
 
     uint32_t freq_bits, last_bits_setting;
     uint32_t freq_delta, last_delta;
@@ -261,16 +283,17 @@ static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_postdiv_clock_hz,
 
     while (rpexp_err == RPEXP_OK) {
 
-        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+        rpexp_err = rpexp_rosc_measure_clock_freq_khz(measured_rosc_clock_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
 
         if (rpexp_err == RPEXP_OK) {
-            if (*measured_rosc_postdiv_clock_hz > target_rosc_postdiv_clock_hz) {
-                freq_delta = *measured_rosc_postdiv_clock_hz - target_rosc_postdiv_clock_hz;
+            if (*measured_rosc_clock_khz > target_rosc_clock_khz) {
+                freq_delta = *measured_rosc_clock_khz - target_rosc_clock_khz;
             } else {
-                freq_delta = target_rosc_postdiv_clock_hz - *measured_rosc_postdiv_clock_hz;
+                freq_delta = target_rosc_clock_khz - *measured_rosc_clock_khz;
             }
 
             if (freq_bits && freq_delta > last_delta) {
+                // relies on monotonicity of settings
                 break;
             }
 
@@ -287,7 +310,7 @@ static rpexp_err_t rosc_frequency_trim_up(uint32_t target_rosc_postdiv_clock_hz,
     }
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+        rpexp_err = rpexp_rosc_measure_clock_freq_khz(measured_rosc_clock_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     }
 
     return rpexp_err;
@@ -955,7 +978,7 @@ rpexp_err_t rpexp_rosc_set_div(uint32_t rosc_div) {
 
     if (rpexp_err == RPEXP_OK) {
         // REstart timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
+        rpexp_err = get_timespec_and_tickcount(&rosc_time_count_freq);
     }
 }
 
@@ -1007,7 +1030,7 @@ rpexp_err_t rpexp_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 
     if (rpexp_err == RPEXP_OK) {
         // REstart timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
+        rpexp_err = get_timespec_and_tickcount(&rosc_time_count_freq);
     }
 
     return RPEXP_OK;
@@ -1030,7 +1053,7 @@ rpexp_err_t rpexp_rosc_zero_all_freq_ab_bits(void) {
 
     if (rpexp_err == RPEXP_OK && freq_bits != starting_freq_bits) {
         // REstart timing for ROSC frequency measurement
-        rpexp_err = get_timespec_and_tickcount(&snapshot_rosc_time_n_count);
+        rpexp_err = get_timespec_and_tickcount(&rosc_time_count_freq);
     }
 
     return rpexp_err;
@@ -1084,13 +1107,13 @@ uint32_t rpexp_rosc_dec_freq_ab_bits(uint32_t freq32) {
 }
 
 
-rpexp_err_t rpexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32_t min_sample_us) {
+rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz, uint32_t min_sample_us) {
 
     rpexp_err_t rpexp_err;
     uint64_t delta_time_us;
     rosc_time_n_count_t current_rosc_time_n_count;
 
-    *rosc_freq_hz = 0;
+    *rosc_freq_khz = 0;
 
     do {
         rpexp_err = get_timespec_and_tickcount(&current_rosc_time_n_count);
@@ -1099,7 +1122,7 @@ rpexp_err_t rpexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32
             break;
         }
 
-        delta_time_us = current_rosc_time_n_count.time_us - snapshot_rosc_time_n_count.time_us;
+        delta_time_us = current_rosc_time_n_count.time_us - rosc_time_count_freq.time_us;
 
         if (delta_time_us > (uint64_t) min_sample_us) {
             break;
@@ -1109,33 +1132,34 @@ rpexp_err_t rpexp_rosc_measure_postdiv_clock_freq(uint32_t *rosc_freq_hz, uint32
 
     if (rpexp_err == RPEXP_OK) {
 
-        uint64_t delta_tick_count = current_rosc_time_n_count.tick_count - snapshot_rosc_time_n_count.tick_count;
-        *rosc_freq_hz = (uint32_t) ((delta_tick_count * (uint64_t) 1000000ull * (uint64_t) TICK_GENERATOR_CYCLES) / delta_time_us);
+        uint64_t delta_tick_count = current_rosc_time_n_count.tick_count - rosc_time_count_freq.tick_count;
+        *rosc_freq_khz = (uint32_t) ((delta_tick_count * (uint64_t) 1000ull * (uint64_t) TICK_GENERATOR_CYCLES) / delta_time_us);
+
+        // record frequency for any subsequent baudrate setting etc.
+        rosc_time_count_freq.system_clock_frequency_khz = *rosc_freq_khz;
 
         // update the static datapoint for any subsequent calculation(s)
-        snapshot_rosc_time_n_count = current_rosc_time_n_count;
+        rosc_time_count_freq = current_rosc_time_n_count;
     }
 
     return rpexp_err;
 }
 
 
-rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdiv_clock_hz, uint32_t *measured_rosc_postdiv_clock_hz) {
+rpexp_err_t rpexp_rosc_set_faster_clock_freq(uint32_t target_rosc_clock_khz, uint32_t *measured_rosc_clock_khz) {
 
-    uint32_t freq_bits;
     uint32_t rosc_div;
-
-    uint32_t rosc_freq_hz;
-    uint32_t new_rosc_freq_hz;
+    uint32_t rosc_freq_khz;
+    uint32_t new_rosc_freq_khz;
 
     // Firstly, trim ROSC fully _down_ in frequency
     rpexp_err_t rpexp_err = rpexp_rosc_zero_all_freq_ab_bits();
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_rosc_measure_postdiv_clock_freq(measured_rosc_postdiv_clock_hz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
+        rpexp_err = rpexp_rosc_measure_clock_freq_khz(measured_rosc_clock_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     }
 
-    if (rpexp_err == RPEXP_OK && (target_rosc_postdiv_clock_hz < *measured_rosc_postdiv_clock_hz)) {
+    if (rpexp_err == RPEXP_OK && (target_rosc_clock_khz < *measured_rosc_clock_khz)) {
         // it is not possible to slow things down further because the diver setting
         // can not be increased without [possibly] glitching the ROSC clock.
         // Return "OK" and leave the *caller* to decide if this is slow enough ...
@@ -1152,13 +1176,13 @@ rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdi
 
         for (new_div = rosc_div; new_div > 1; new_div--) {
 
-            new_rosc_freq_hz = target_rosc_postdiv_clock_hz * new_div;
+            new_rosc_freq_khz = target_rosc_clock_khz * new_div;
 
             // this could be smarter for low target freqs, e.g. 10 MHz, to allow "centreing"
             // the freq a/b but settings to more easily allow for trimming but it will [still]
             // work optimally for higher target frquencies, such as 48 MHz, where there
             // is likely only one possible divider ratio setting anyway.
-            if (new_rosc_freq_hz <= ROSC_MAX_FREQ) {
+            if (new_rosc_freq_khz <= ROSC_MAX_FREQ_KHZ) {
                 break;
             }
         }
@@ -1167,71 +1191,126 @@ rpexp_err_t rpexp_rosc_set_faster_postdiv_clock_freq(uint32_t target_rosc_postdi
     }
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rosc_frequency_trim_up(target_rosc_postdiv_clock_hz, measured_rosc_postdiv_clock_hz);
+        rpexp_err = rosc_frequency_trim_up(target_rosc_clock_khz, measured_rosc_clock_khz);
+    }
+
+    return rpexp_err;
+}
+
+#if 0
+rpexp_err_t rpexp_uart_enable(uart_hw_t *uart, bool enable) {
+
+    if (uart != uart0 && uart != uart1) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    rpexp_err_t rpexp_err = peripheral_clock_init(enable);
+
+    if (rpexp_err == RPEXP_OK) {
+        if (uart == uart0) {
+            return peripheral_enable(enable, RESETS_RESET_UART0_BITS);
+        }
+    } else {
+        return peripheral_enable(enable, RESETS_RESET_UART1_BITS);
+    }
+}
+
+
+static rpexp_err_t uart_set_baudrate(uart_hw_t *uart, uint32_t req_baudrate, uint32_t *actual_baudrate) {
+
+    if (!actual_baudrate) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    *actual_baudrate = 0;
+
+    if (!rosc_time_count_freq.system_clock_frequency_khz) {
+        return RPEXP_ERR_CLOCK_FREQ_UNKNOWN;
+    }
+
+    uint32_t baud_rate_div = (8 * rosc_time_count_freq.system_clock_frequency_khz / req_baudrate);
+    uint32_t baud_ibrd = baud_rate_div >> 7;
+    uint32_t baud_fbrd;
+
+    if (baud_ibrd == 0) {
+        baud_ibrd = 1;
+        baud_fbrd = 0;
+    } else if (baud_ibrd >= 65535) {
+        baud_ibrd = 65535;
+        baud_fbrd = 0;
+    }  else {
+        baud_fbrd = ((baud_rate_div & 0x7f) + 1) / 2;
+    }
+
+    // Load PL011's baud divisor registers
+    rpexp_err_t rpexp_err = rpexp_write32(_reg(uart->ibrd), baud_ibrd);
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(uart->fbrd), baud_fbrd);
+    }
+
+    // PL011 needs a (dummy) line control register write to latch in the
+    // divisors. We don't want to actually change LCR contents here.
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_hw_set_bits(_reg(uart->lcr_h), 0);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        *actual_baudrate = (4 * rosc_time_count_freq.system_clock_frequency_khz) / (64 * baud_ibrd + baud_fbrd);
     }
 
     return rpexp_err;
 }
 
 
-rpexp_err_t rpexp_uart_enable(uart_inst_t *uart, bool enable) {
+rpexp_err_t rpexp_uart_init(uart_hw_t *uart, uint32_t baudrate, uint32_t data_bits, uint32_t stop_bits) {
 
-    if (uart == uart0) {
-        return peripheral_enable(enable, RESETS_RESET_UART0_BITS);
-    } else if  (uart == uart1) {
-        return peripheral_enable(enable, RESETS_RESET_UART1_BITS);
-    } else {
-        return RPEXP_ERR_API_ARG;
-    }
-}
+    uint32_t actual_baudrate;
+
+    rpexp_err_t rpexp_err = uart_set_baudrate(uart, baudrate, &actual_baudrate);
 
 
-rpexp_err_t rpexp_uart_init(uart_inst_t *uart, uint32_t baudrate, uint32_t data_bits, uint32_t stop_bits) {
 
 }
 
 
-rpexp_err_t rpexp_uart_deinit(uart_inst_t *uart) {
+rpexp_err_t rpexp_uart_deinit(uart_hw_t *uart) {
 
 }
 
 
-rpexp_err_t rpexp_uart_is_writable(uart_inst_t *uart) {
+rpexp_err_t rpexp_uart_is_writable(uart_hw_t *uart) {
 
 }
 
-rpexp_err_t rpexp_uart_is_readable(uart_inst_t *uart) {
+rpexp_err_t rpexp_uart_is_readable(uart_hw_t *uart) {
 
 }
 
-rpexp_err_t rpexp_uart_write_blocking(uart_inst_t *uart, const uint8_t *src, uint32_t len) {
+rpexp_err_t rpexp_uart_write_blocking(uart_hw_t *uart, const uint8_t *src, uint32_t len) {
 
 }
 
-rpexp_err_t rpexp_uart_read_blocking(uart_inst_t *uart, uint8_t *dst, uint32_t len) {
+rpexp_err_t rpexp_uart_read_blocking(uart_hw_t *uart, uint8_t *dst, uint32_t len) {
 
 }
 
-rpexp_err_t rpexp_uart_putc(uart_inst_t *uart, char c) {
+rpexp_err_t rpexp_uart_putc(uart_hw_t *uart, char c) {
 
 }
 
-rpexp_err_t rpexp_uart_puts(uart_inst_t *uart, const char *s) {
+rpexp_err_t rpexp_uart_puts(uart_hw_t *uart, const char *s) {
 
 }
 
-rpexp_err_t rpexp_uart_getc(uart_inst_t *uart) {
+rpexp_err_t rpexp_uart_getc(uart_hw_t *uart) {
 
 }
 
-rpexp_err_t rpexp_uart_set_break(uart_inst_t *uart, bool en) {
+rpexp_err_t rpexp_uart_set_break(uart_hw_t *uart, bool en) {
 
 }
-
-
 
 #define uart0_hw ((uart_hw_t *)UART0_BASE)
 #define uart1_hw ((uart_hw_t *)UART1_BASE)
-
-
-
+#endif
