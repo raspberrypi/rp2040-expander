@@ -922,7 +922,7 @@ rpexp_err_t rpexp_uart_is_writable(uart_chan_t uart, bool *writeable);
 rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable);
 rpexp_err_t rpexp_uart_write_blocking(uart_chan_t uart, const uint8_t *src, uint32_t len);
 rpexp_err_t rpexp_uart_read_blocking(uart_chan_t uart, uint8_t *dst, uint32_t len);
-rpexp_err_t rpexp_uart_putc(uart_chan_t uart, char c);
+rpexp_err_t rpexp_uart_putc_raw(uart_chan_t uart, char c);
 rpexp_err_t rpexp_uart_puts(uart_chan_t uart, const char *s);
 rpexp_err_t rpexp_uart_uart_getc(uart_chan_t uart);
 rpexp_err_t rpexp_uart_set_break(uart_chan_t uart, bool en);

@@ -30,6 +30,9 @@ static rosc_time_n_count_t snapshot_rosc_time_n_count = { 0 };
 static uint32_t system_clock_frequency_khz = 0;
 
 
+#define rpexp_tight_loop_contents()      ((void)0)
+
+
 static rpexp_err_t reset_blocks(uint32_t mask) {
 
     return rpexp_hw_set_bits(_reg(resets_hw->reset), mask);
@@ -397,15 +400,18 @@ static rpexp_err_t uart_set_format(uart_chan_t uart, uint32_t data_bits, uint32_
         return RPEXP_ERR_API_ARG;
     }
 
+    // set the above parameters and also enable the FIFOs
     return rpexp_write_hw_mask(_reg(uart_addr[uart]->lcr_h),
-                   ((data_bits - 5u) << UART_UARTLCR_H_WLEN_LSB) |
+                  (((data_bits - 5u) << UART_UARTLCR_H_WLEN_LSB) |
                    ((stop_bits - 1u) << UART_UARTLCR_H_STP2_LSB) |
                    (bool_to_bit(parity != UART_NO_PARITY) << UART_UARTLCR_H_PEN_LSB) |
-                   (bool_to_bit(parity == UART_EVEN_PARITY) << UART_UARTLCR_H_EPS_LSB),
-                   UART_UARTLCR_H_WLEN_BITS |
+                   (bool_to_bit(parity == UART_EVEN_PARITY) << UART_UARTLCR_H_EPS_LSB) |
+                    UART_UARTLCR_H_FEN_BITS),
+                  (UART_UARTLCR_H_WLEN_BITS |
                    UART_UARTLCR_H_STP2_BITS |
                    UART_UARTLCR_H_PEN_BITS |
-                   UART_UARTLCR_H_EPS_BITS);
+                   UART_UARTLCR_H_EPS_BITS |
+                   UART_UARTLCR_H_FEN_BITS));
 }
 
 
@@ -1353,6 +1359,17 @@ rpexp_err_t rpexp_uart_init(uart_chan_t uart,
         rpexp_err = uart_set_hw_flow(uart, cts, rts);
     }
 
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write_hw_mask(_reg(uart_addr[uart]->cr),
+            UART_UARTCR_UARTEN_BITS | UART_UARTCR_TXE_BITS | UART_UARTCR_RXE_BITS,
+            UART_UARTCR_UARTEN_BITS | UART_UARTCR_TXE_BITS | UART_UARTCR_RXE_BITS);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        // Always enable DREQ signals -- no harm in this if DMA is not listening
+        rpexp_err = rpexp_write32(_reg(uart_addr[uart]->dmacr), UART_UARTDMACR_TXDMAE_BITS | UART_UARTDMACR_RXDMAE_BITS);
+    }
+
     return rpexp_err;
 }
 
@@ -1387,12 +1404,6 @@ rpexp_err_t rpexp_uart_deinit(uart_chan_t uart) {
 }
 
 
-rpexp_err_t rpexp_uart_is_writable(uart_chan_t uart, bool *writeable) {
-
-    return uart_check_fr_bit_action(uart, UART_UARTFR_TXFF_BITS, writeable);
-}
-
-
 rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable) {
 
     // PL011 doesn't expose levels directly, so return values are only true and false
@@ -1400,25 +1411,68 @@ rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable) {
 }
 
 
-rpexp_err_t rpexp_uart_write_blocking(uart_chan_t uart, const uint8_t *src, uint32_t len) {
-
-}
-
 rpexp_err_t rpexp_uart_read_blocking(uart_chan_t uart, uint8_t *dst, uint32_t len) {
 
 }
 
-rpexp_err_t rpexp_uart_putc(uart_chan_t uart, char c) {
 
+rpexp_err_t rpexp_uart_is_writable(uart_chan_t uart, bool *writeable) {
+
+    return uart_check_fr_bit_action(uart, UART_UARTFR_TXFF_BITS, writeable);
 }
+
+
+rpexp_err_t rpexp_uart_write_blocking(uart_chan_t uart, const uint8_t *src, uint32_t len) {
+
+    rpexp_err_t rpexp_err = RPEXP_OK;
+
+    for (uint32_t i = 0; i < len && rpexp_err == RPEXP_OK; ++i) {
+
+        bool writeable;
+
+        do {
+            rpexp_err = rpexp_uart_is_writable(uart, &writeable);
+            rpexp_tight_loop_contents();
+        } while (!writeable && rpexp_err == RPEXP_OK);
+
+        if (rpexp_err == RPEXP_OK) {
+            rpexp_err = rpexp_write32(_reg(uart_addr[uart]->dr), (uint32_t) *src++);
+        }
+    }
+
+    return rpexp_err;
+}
+
+
+rpexp_err_t rpexp_uart_putc_raw(uart_chan_t uart, char c) {
+
+    return rpexp_uart_write_blocking(uart, (const uint8_t *) &c, 1);
+}
+
 
 rpexp_err_t rpexp_uart_puts(uart_chan_t uart, const char *s) {
 
+    rpexp_err_t rpexp_err = RPEXP_OK;
+
+    do {
+        char c = *s++;
+
+        if (!c) {
+            break;
+        }
+
+        rpexp_err = rpexp_uart_putc_raw(uart, c);
+
+    } while (rpexp_err == RPEXP_OK);
+
+    return rpexp_err;
 }
+
 
 rpexp_err_t rpexp_uart_getc(uart_chan_t uart) {
 
 }
+
 
 rpexp_err_t rpexp_uart_set_break(uart_chan_t uart, bool en) {
 

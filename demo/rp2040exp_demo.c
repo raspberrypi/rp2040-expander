@@ -210,6 +210,10 @@ int main() {
     rpexp_err = rpexp_uart_assign_gpios(uart_gpio_list);
     if (rpexp_err) goto end_tests;
 
+    rpexp_err = rpexp_uart_puts(UART0, "\r\nHello world!\r\nThis is a test message brought to you by expander\r\n");
+    step = 35;  // Initialise UARTs
+    if (rpexp_err) goto end_tests;
+
 /*  int main() {
  *
  *     // Initialise UART 0
@@ -224,19 +228,19 @@ int main() {
 
     //------------------------------------------------------------------------
 
-    step = 35;
+    step = 40;
     rpexp_err = rpexp_adc_block_enable(true);
     if (rpexp_err) goto end_tests;
 
-    step = 36;
+    step = 41;
     rpexp_err = rpexp_adc_init();
     if (rpexp_err) goto end_tests;
 
-    step = 37;
+    step = 42;
     rpexp_err = read_adc_gpio_voltage(0);  // GPIO26
     if (rpexp_err) goto end_tests;
 
-    step = 38;
+    step = 43;
     float temperature;
     read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;
