@@ -909,6 +909,22 @@ rpexp_err_t rpexp_rosc_set_faster_clock_freq(uint32_t target_rosc_clock_khz,
 
 //----------------------------------------------------------------------------
 
+/*! \brief Load a program into target RAM and start executing it
+ *
+ * Write a block 32-bit words, read from from the buffer provided by the
+ * supplied pointer into target RAM, the start execution at the begining
+ * of RAM - the bootrom's watchdog reboot mechanism is used for this.
+ *
+ * TODO consider adding option(s) for different start address etc.
+ *
+ * \param pobject       Pointer to program 32-bit word object code data
+ * \param length        Size of program to load in *32-bit words*
+ * \returns rpexp_err_t Operation result
+ */
+rpexp_err_t rpexp_load_and_run_ram_program(const uint32_t *pobject, uint32_t length);
+
+//----------------------------------------------------------------------------
+
 rpexp_err_t rpexp_uart_enable(uart_chan_t uart, bool enable);
 rpexp_err_t rpexp_uart_init(uart_chan_t uart,
                             uint32_t baudrate,
@@ -919,8 +935,8 @@ rpexp_err_t rpexp_uart_init(uart_chan_t uart,
 rpexp_err_t rpexp_uart_deinit(uart_chan_t uart);
 rpexp_err_t rpexp_uart_assign_gpios(const int8_t *pgpio_list);
 rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable);
-rpexp_err_t rpexp_uart_getc(uart_chan_t uart, int *pint);
-rpexp_err_t rpexp_uart_getc_non_blocking(uart_chan_t uart, int *pint);
+rpexp_err_t rpexp_uart_getc(uart_chan_t uart, int *prxd);
+rpexp_err_t rpexp_uart_getc_non_blocking(uart_chan_t uart, int *prxd);
 rpexp_err_t rpexp_uart_read_blocking(uart_chan_t uart, uint8_t *dst, uint32_t len);
 rpexp_err_t rpexp_uart_is_writable(uart_chan_t uart, bool *writeable);
 rpexp_err_t rpexp_uart_putc(uart_chan_t uart, char c);

@@ -450,15 +450,78 @@ static rpexp_err_t uart_check_fr_bit_action(uart_chan_t uart, uint32_t bit_mask_
 }
 
 
-static rpexp_err_t uart_read_rxed_data(uart_chan_t uart, int *pint) {
+static rpexp_err_t uart_read_rxed_data(uart_chan_t uart, int *prxd) {
 
     uint32_t read_dr;
 
     rpexp_err_t rpexp_err = rpexp_read32(_reg(uart_addr[uart]->dr), &read_dr);
 
     if (rpexp_err == RPEXP_OK) {
-        *pint = (int) (read_dr & 0x0FFul);
+        *prxd = (int) (read_dr & 0x0FFul);
     }
+
+    return rpexp_err;
+}
+
+#define REBOOT_TIMEOUT 1
+
+static rpexp_err_t run_rpexp_program(uint32_t pc, uint32_t sp) {
+
+    rpexp_err_t rpexp_err;
+
+    pc |= 1ul;  // Thumb it!!
+
+    if (rpexp_err == RPEXP_OK) {
+        // Clear enable before setting up scratch registers
+        rpexp_err = rpexp_hw_clear_bits(_reg(watchdog_hw->ctrl), WATCHDOG_CTRL_ENABLE_BITS);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(watchdog_hw->scratch[4]), 0xb007c0d3);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(watchdog_hw->scratch[5]), pc ^ -0xb007c0d3);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(watchdog_hw->scratch[6]), sp);
+    }
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(watchdog_hw->scratch[7]), pc);
+    }
+
+#ifdef REBOOT_TIMEOUT
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_write32(_reg(watchdog_hw->load), 50000);
+    }
+#endif
+
+    if (rpexp_err == RPEXP_OK) {
+        // Reset everything apart from ROSC and XOSC
+        rpexp_err = rpexp_hw_set_bits(_reg(psm_hw->wdsel), PSM_WDSEL_BITS & ~(PSM_WDSEL_ROSC_BITS | PSM_WDSEL_XOSC_BITS));
+      //rpexp_err = rpexp_hw_set_bits(_reg(psm_hw->wdsel), 0);
+    }
+
+    // Do not pause on restart for debug
+    uint32_t dbg_bits = WATCHDOG_CTRL_PAUSE_DBG0_BITS |
+                        WATCHDOG_CTRL_PAUSE_DBG1_BITS |
+                        WATCHDOG_CTRL_PAUSE_JTAG_BITS;
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_hw_clear_bits(_reg(watchdog_hw->ctrl), dbg_bits);
+    }
+
+#ifdef REBOOT_TIMEOUT
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = rpexp_hw_set_bits(_reg(watchdog_hw->ctrl), WATCHDOG_CTRL_ENABLE_BITS);
+    }
+#else
+    if (rpexp_err == RPEXP_OK) {
+      rpexp_err = rpexp_hw_set_bits(_reg(watchdog_hw->ctrl), WATCHDOG_CTRL_TRIGGER_BITS);
+    }
+#endif
 
     return rpexp_err;
 }
@@ -927,7 +990,6 @@ rpexp_err_t rpexp_gpio_set_pulls(uint32_t gpio, bool up, bool down) {
 
 //----------------------------------------------------------------------------
 
-
 rpexp_err_t rpexp_adc_block_enable(bool enable) {
 
     rpexp_err_t rpexp_err = adc_clock_init(enable);
@@ -1333,6 +1395,24 @@ rpexp_err_t rpexp_rosc_set_faster_clock_freq(uint32_t target_rosc_clock_khz, uin
     return rpexp_err;
 }
 
+//----------------------------------------------------------------------------
+
+rpexp_err_t rpexp_load_and_run_ram_program(const uint32_t *pobject, uint32_t length) {
+
+    rpexp_err_t rpexp_err = rpexp_block_write32(SRAM_BASE, pobject, length);
+
+    // hard code for now ...
+    uint32_t pc = 0x20000000ul;
+    uint32_t sp = 0x20042000ul;
+
+    if (rpexp_err == RPEXP_OK) {
+        rpexp_err = run_rpexp_program(pc, sp);
+    }
+
+    return rpexp_err;
+}
+
+//----------------------------------------------------------------------------
 
 rpexp_err_t rpexp_uart_enable(uart_chan_t uart, bool enable) {
 
@@ -1421,9 +1501,9 @@ rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable) {
 }
 
 
-rpexp_err_t rpexp_uart_getc(uart_chan_t uart, int *pint) {
+rpexp_err_t rpexp_uart_getc(uart_chan_t uart, int *prxd) {
 
-    if (!pint) {
+    if (!prxd) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -1436,19 +1516,19 @@ rpexp_err_t rpexp_uart_getc(uart_chan_t uart, int *pint) {
     } while (!readable && rpexp_err == RPEXP_OK);
 
     if (rpexp_err == RPEXP_OK) {
-        return uart_read_rxed_data(uart, pint);
+        return uart_read_rxed_data(uart, prxd);
     }
     else {
-        *pint = -1;
+        *prxd = -1;
     }
 
     return rpexp_err;
 }
 
 
-rpexp_err_t rpexp_uart_getc_non_blocking(uart_chan_t uart, int *pint) {
+rpexp_err_t rpexp_uart_getc_non_blocking(uart_chan_t uart, int *prxd) {
 
-    if (!pint) {
+    if (!prxd) {
         return RPEXP_ERR_API_ARG;
     }
 
@@ -1456,10 +1536,10 @@ rpexp_err_t rpexp_uart_getc_non_blocking(uart_chan_t uart, int *pint) {
     rpexp_err_t rpexp_err = rpexp_uart_is_readable(uart, &readable);
 
     if (rpexp_err == RPEXP_OK && readable) {
-        return uart_read_rxed_data(uart, pint);
+        return uart_read_rxed_data(uart, prxd);
     }
     else {
-        *pint = -1;
+        *prxd = -1;
     }
 
     return rpexp_err;

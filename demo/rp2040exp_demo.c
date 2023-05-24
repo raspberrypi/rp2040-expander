@@ -18,6 +18,8 @@
 #include <rp2040exp.h>
 #include <inttypes.h>
 
+#include "blink_prog.h"
+
 // "Mock up" *nix like timing functions for an RP2040 host
 #ifdef PICO_BUILD
 #define usleep(u)               sleep_us(u)
@@ -233,7 +235,7 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 40;
-    printf("UART0 getc() test; typed characters will be printed - press 'Escape' to exit: %d\n");
+    rpexp_err = rpexp_uart_puts(UART0, "UART0 getc() test; typed characters will be printed - press 'Escape' to exit\r\n");
 
     do {
         int data;
@@ -275,40 +277,40 @@ int main() {
     read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;
 
-    printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
+    //------------------------------------------------------------------------
 
-    read_chip_temperature(&temperature);
+    printf("LED flash loop, press 'BOOTSEL' button to continue ...\n");
+    step = 55;
+
+    while (1) {
+
+        rpexp_err = rpexp_gpio_toggle(TEST_TOGGLE_PIN);
+        if (rpexp_err) goto end_tests;
+
+        (void) usleep(50000);
+
+        data = rpexp_gpio_hi_get_all();
+
+        if (data == (uint32_t)-1) {
+            rpexp_err = RPEXP_ERR_TEST;
+        }
+        else if (0 == ((1ul << PUSH_BUTTON_INPUT_PIN) & data)) {
+
+            rpexp_err = rpexp_gpio_clr(TEST_TOGGLE_PIN);
+            if (rpexp_err) goto end_tests;
+            printf("Button pressed!\n");
+            break;
+        }
+    }
     if (rpexp_err) goto end_tests;
-
-    printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
 
     //------------------------------------------------------------------------
 
-    if (rpexp_err == RPEXP_OK) {
-        printf("LED flash loop, press 'BOOTSEL' button to end tests...\n");
-        step = 99;
-
-        while (1) {
-
-            rpexp_err = rpexp_gpio_toggle(TEST_TOGGLE_PIN);
-            if (rpexp_err) goto end_tests;
-
-            (void) usleep(50000);
-
-            data = rpexp_gpio_hi_get_all();
-
-            if (data == (uint32_t)-1) {
-                rpexp_err = RPEXP_ERR_TEST;
-            }
-            else if (0 == ((1ul << PUSH_BUTTON_INPUT_PIN) & data)) {
-
-                rpexp_err = rpexp_gpio_clr(TEST_TOGGLE_PIN);
-                if (rpexp_err) goto end_tests;
-                printf("Button pressed!\n");
-                break;
-            }
-        }
-    }
+    step = 60;
+    printf("Run code from RAM ...\n");
+    rpexp_err = rpexp_load_and_run_ram_program((const uint32_t *)blink_blink_bin,
+                                              ((sizeof(blink_blink_bin) + 3) / 4));
+    if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
