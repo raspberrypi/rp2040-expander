@@ -336,13 +336,11 @@ static rpexp_err_t common_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 }
 
 
-static rpexp_err_t uart_set_baudrate(uart_chan_t uart, uint32_t req_baudrate, uint32_t *actual_baudrate) {
+static rpexp_err_t uart_set_baudrate(uart_chan_t uart, uint32_t req_baudrate, uint32_t *pactual_baudrate) {
 
-    if (!actual_baudrate) {
-        return RPEXP_ERR_API_ARG;
+    if (pactual_baudrate) {
+        *pactual_baudrate = 0;
     }
-
-    *actual_baudrate = 0;
 
     if (!system_clock_frequency_khz) {
         return RPEXP_ERR_CLOCK_FREQ_UNKNOWN;
@@ -377,8 +375,8 @@ static rpexp_err_t uart_set_baudrate(uart_chan_t uart, uint32_t req_baudrate, ui
         rpexp_err = rpexp_hw_set_bits(_reg(uart_addr[uart]->lcr_h), 0);
     }
 
-    if (rpexp_err == RPEXP_OK) {
-        *actual_baudrate = (4 * system_clock_frequency_hz) / (64 * baud_ibrd + baud_fbrd);
+    if (rpexp_err == RPEXP_OK && pactual_baudrate) {
+        *pactual_baudrate = (4 * system_clock_frequency_hz) / (64 * baud_ibrd + baud_fbrd);
     }
 
     return rpexp_err;
@@ -429,6 +427,10 @@ static rpexp_err_t uart_set_hw_flow(uart_chan_t uart, bool cts, bool rts) {
 
 static rpexp_err_t uart_check_fr_bit_action(uart_chan_t uart, uint32_t bit_mask_to_check, bool *actionable) {
 
+    if (!actionable) {
+        return RPEXP_ERR_API_ARG;
+    }
+
     if (uart >= NUM_UART) {
         return RPEXP_ERR_API_ARG;
     }
@@ -442,6 +444,20 @@ static rpexp_err_t uart_check_fr_bit_action(uart_chan_t uart, uint32_t bit_mask_
         } else {
             *actionable = true;
         }
+    }
+
+    return rpexp_err;
+}
+
+
+static rpexp_err_t uart_read_rxed_data(uart_chan_t uart, int *pint) {
+
+    uint32_t read_dr;
+
+    rpexp_err_t rpexp_err = rpexp_read32(_reg(uart_addr[uart]->dr), &read_dr);
+
+    if (rpexp_err == RPEXP_OK) {
+        *pint = (int) (read_dr & 0x0FFul);
     }
 
     return rpexp_err;
@@ -1336,8 +1352,6 @@ rpexp_err_t rpexp_uart_enable(uart_chan_t uart, bool enable) {
 }
 
 
-#include <stdio.h>
-
 rpexp_err_t rpexp_uart_init(uart_chan_t uart,
                             uint32_t baudrate,
                             uint32_t data_bits,
@@ -1345,11 +1359,7 @@ rpexp_err_t rpexp_uart_init(uart_chan_t uart,
                             uart_parity_type_t parity,
                             bool cts, bool rts) {
 
-    uint32_t actual_baudrate;  // FIXME DEBUG TODO remove
-
-    rpexp_err_t rpexp_err = uart_set_baudrate(uart, baudrate, &actual_baudrate);
-
-    printf("actual_baudrate: %d\n", actual_baudrate);
+    rpexp_err_t rpexp_err = uart_set_baudrate(uart, baudrate, NULL);
 
     if (rpexp_err == RPEXP_OK) {
         rpexp_err = uart_set_format(uart, data_bits, stop_bits, parity);
@@ -1411,8 +1421,70 @@ rpexp_err_t rpexp_uart_is_readable(uart_chan_t uart, bool *readable) {
 }
 
 
+rpexp_err_t rpexp_uart_getc(uart_chan_t uart, int *pint) {
+
+    if (!pint) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    bool readable;
+    rpexp_err_t rpexp_err;
+
+    do {
+        rpexp_err = rpexp_uart_is_readable(uart, &readable);
+        rpexp_tight_loop_contents();
+    } while (!readable && rpexp_err == RPEXP_OK);
+
+    if (rpexp_err == RPEXP_OK) {
+        return uart_read_rxed_data(uart, pint);
+    }
+    else {
+        *pint = -1;
+    }
+
+    return rpexp_err;
+}
+
+
+rpexp_err_t rpexp_uart_getc_non_blocking(uart_chan_t uart, int *pint) {
+
+    if (!pint) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    bool readable;
+    rpexp_err_t rpexp_err = rpexp_uart_is_readable(uart, &readable);
+
+    if (rpexp_err == RPEXP_OK && readable) {
+        return uart_read_rxed_data(uart, pint);
+    }
+    else {
+        *pint = -1;
+    }
+
+    return rpexp_err;
+}
+
+
 rpexp_err_t rpexp_uart_read_blocking(uart_chan_t uart, uint8_t *dst, uint32_t len) {
 
+    if (!dst) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    if (uart >= NUM_UART) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    rpexp_err_t rpexp_err = RPEXP_OK;
+
+    for (uint32_t i = 0; i < len && rpexp_err == RPEXP_OK; ++i) {
+        int data;
+        rpexp_err = rpexp_uart_getc(uart, &data);
+        *dst++ = (uint8_t) (data & 0x0FFul);
+    }
+
+    return rpexp_err;
 }
 
 
@@ -1422,7 +1494,40 @@ rpexp_err_t rpexp_uart_is_writable(uart_chan_t uart, bool *writeable) {
 }
 
 
+rpexp_err_t rpexp_uart_putc(uart_chan_t uart, char c) {
+
+    return rpexp_uart_write_blocking(uart, (const uint8_t *) &c, 1);
+}
+
+
+rpexp_err_t rpexp_uart_puts(uart_chan_t uart, const char *s) {
+
+    rpexp_err_t rpexp_err = RPEXP_OK;
+
+    do {
+        char c = *s++;
+
+        if (!c) {
+            break;
+        }
+
+        rpexp_err = rpexp_uart_putc(uart, c);
+
+    } while (rpexp_err == RPEXP_OK);
+
+    return rpexp_err;
+}
+
+
 rpexp_err_t rpexp_uart_write_blocking(uart_chan_t uart, const uint8_t *src, uint32_t len) {
+
+    if (!src) {
+        return RPEXP_ERR_API_ARG;
+    }
+
+    if (uart >= NUM_UART) {
+        return RPEXP_ERR_API_ARG;
+    }
 
     rpexp_err_t rpexp_err = RPEXP_OK;
 
@@ -1441,36 +1546,6 @@ rpexp_err_t rpexp_uart_write_blocking(uart_chan_t uart, const uint8_t *src, uint
     }
 
     return rpexp_err;
-}
-
-
-rpexp_err_t rpexp_uart_putc_raw(uart_chan_t uart, char c) {
-
-    return rpexp_uart_write_blocking(uart, (const uint8_t *) &c, 1);
-}
-
-
-rpexp_err_t rpexp_uart_puts(uart_chan_t uart, const char *s) {
-
-    rpexp_err_t rpexp_err = RPEXP_OK;
-
-    do {
-        char c = *s++;
-
-        if (!c) {
-            break;
-        }
-
-        rpexp_err = rpexp_uart_putc_raw(uart, c);
-
-    } while (rpexp_err == RPEXP_OK);
-
-    return rpexp_err;
-}
-
-
-rpexp_err_t rpexp_uart_getc(uart_chan_t uart) {
-
 }
 
 

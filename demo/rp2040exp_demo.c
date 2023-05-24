@@ -205,42 +205,67 @@ int main() {
     rpexp_err = rpexp_uart_init(UART1, 115200, 8, 1, UART_NO_PARITY, false, false);
     if (rpexp_err) goto end_tests;
 
-    step = 34;  // Initialise UARTs
+    step = 34;
     const int8_t uart_gpio_list[] = {0, 1, 2, 3, 4, -1};
     rpexp_err = rpexp_uart_assign_gpios(uart_gpio_list);
     if (rpexp_err) goto end_tests;
 
-    rpexp_err = rpexp_uart_puts(UART0, "\r\nHello world!\r\nThis is a test message brought to you by expander\r\n");
-    step = 35;  // Initialise UARTs
+    step = 35;
+    rpexp_err = rpexp_uart_puts(UART0, "\r\nHello UART world!\r\nThis is a test message brought to you by expander - built: ");
     if (rpexp_err) goto end_tests;
 
-/*  int main() {
- *
- *     // Initialise UART 0
- *     uart_init(uart0, 115200);
- *
- *     // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
- *     gpio_set_function(0, GPIO_FUNC_UART);
- *     gpio_set_function(1, GPIO_FUNC_UART);
- *
- *     uart_puts(uart0, "Hello world!");
-*/
+    step = 36;
+    rpexp_err = rpexp_uart_puts(UART0,  __DATE__);
+    if (rpexp_err) goto end_tests;
+
+    step = 37;
+    rpexp_err = rpexp_uart_putc(UART0, (char)' ');
+    if (rpexp_err) goto end_tests;
+
+    step = 38;
+    rpexp_err = rpexp_uart_puts(UART0,  __TIME__);
+    if (rpexp_err) goto end_tests;
+
+    step = 39;
+    rpexp_err = rpexp_uart_puts(UART0, "\r\n");
+    if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
     step = 40;
+    printf("UART0 getc() test; typed characters will be printed - press 'Escape' to exit: %d\n");
+
+    do {
+        int data;
+        rpexp_err = rpexp_uart_getc(UART0, &data);
+
+        if (!rpexp_err) {
+            if (data == (int)'\e') {
+                printf("\nEscape\n");
+                break;
+            }
+            printf("%c", data);
+        }
+
+    } while (!rpexp_err);
+
+    if (rpexp_err) goto end_tests;
+
+    //------------------------------------------------------------------------
+
+    step = 50;
     rpexp_err = rpexp_adc_block_enable(true);
     if (rpexp_err) goto end_tests;
 
-    step = 41;
+    step = 51;
     rpexp_err = rpexp_adc_init();
     if (rpexp_err) goto end_tests;
 
-    step = 42;
+    step = 52;
     rpexp_err = read_adc_gpio_voltage(0);  // GPIO26
     if (rpexp_err) goto end_tests;
 
-    step = 43;
+    step = 53;
     float temperature;
     read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;
