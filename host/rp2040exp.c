@@ -30,7 +30,13 @@ static rosc_time_n_count_t snapshot_rosc_time_n_count = { 0 };
 static uint32_t system_clock_frequency_khz = 0;
 
 
-#define rpexp_tight_loop_contents()      ((void)0)
+/*! \brief No-op function for the body of tight loops
+ *
+ * No-op function intended to be called by any tight hardware polling loop.
+ * Using this ubiquitously makes it much easier to find tight loops but
+ * also allows de/re-scheduling and/or debugging opportunities.
+ */
+static void rpexp_tight_loop_contents(void) {}
 
 
 static rpexp_err_t reset_blocks(uint32_t mask) {
@@ -469,7 +475,7 @@ static rpexp_err_t run_rpexp_program(uint32_t pc, uint32_t sp) {
 
     rpexp_err_t rpexp_err;
 
-    pc |= 1ul;  // Thumb it!!
+    pc |= 1ul;  // Ensure it is in Thumb mode!
 
     if (rpexp_err == RPEXP_OK) {
         // Clear enable before setting up scratch registers
@@ -1325,6 +1331,8 @@ rpexp_err_t rpexp_rosc_measure_clock_freq_khz(uint32_t *rosc_freq_khz, uint32_t 
             break;
         }
 
+        rpexp_tight_loop_contents();
+
     } while (min_sample_us);
 
     if (rpexp_err == RPEXP_OK) {
@@ -1402,7 +1410,7 @@ rpexp_err_t rpexp_load_and_run_ram_program(const uint32_t *pobject, uint32_t len
     rpexp_err_t rpexp_err = rpexp_block_write32(SRAM_BASE, pobject, length);
 
     // hard code for now ...
-    uint32_t pc = 0x20000000ul;
+    uint32_t pc = 0x20000001ul;
     uint32_t sp = 0x20042000ul;
 
     if (rpexp_err == RPEXP_OK) {

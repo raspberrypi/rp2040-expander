@@ -164,7 +164,7 @@ int main() {
 
     step = 25;  // set new ROSC clock freq
 
-    for (uint32_t new_rosc_clk_freq_mhz = 8; new_rosc_clk_freq_mhz <= 48; new_rosc_clk_freq_mhz += 8) {
+    for (uint32_t new_rosc_clk_freq_mhz = 4; new_rosc_clk_freq_mhz <= 60; new_rosc_clk_freq_mhz += 1) {
 
         uint32_t new_rosc_clk_freq_khz = 1000ul * new_rosc_clk_freq_mhz;
 
