@@ -32,7 +32,6 @@
 #define EXPECTED_DPIDR_0            0x0BC12477ul
 #define EXPECTED_DPIDR_RESCUE_DP    0x10212927ul
 
-#define NUM_ELES(a)                 (sizeof(a) / sizeof(*(a)))
 
 typedef struct {
     uint8_t rd_wr;
