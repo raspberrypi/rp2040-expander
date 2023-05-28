@@ -26,14 +26,15 @@ typedef enum {
     RPEXP_ERR_DAP_FAULT = 4,
     RPEXP_ERR_DAP_TIMEOUT = 5,
     RPEXP_ERR_DAP_PARITY = 6,
-    RPEXP_ERR_CLOCK_FREQ_UNKNOWN = 7,
-    RPEXP_ERR_API_ARG = 8,
-    RPEXP_ERR_NOT_INITED = 9,
-    RPEXP_ERR_IN_USE = 10,
-    RPEXP_ERR_RESET_TIMEOUT = 11,
-    RPEXP_ERR_ADC_TIMEOUT = 12,
-    RPEXP_ERR_TEST = 13,
-    RPEXP_ERR_UNSUPPORTED = 14
+    PREXP_ERR_READ = 7,
+    RPEXP_ERR_CLOCK_FREQ_UNKNOWN = 8,
+    RPEXP_ERR_API_ARG = 9,
+    RPEXP_ERR_NOT_INITED = 10,
+    RPEXP_ERR_IN_USE = 11,
+    RPEXP_ERR_RESET_TIMEOUT = 12,
+    RPEXP_ERR_ADC_TIMEOUT = 13,
+    RPEXP_ERR_TEST = 14,
+    RPEXP_ERR_UNSUPPORTED = 15
 } rpexp_err_t;
 
 
@@ -232,7 +233,7 @@ rpexp_err_t rpexp_gpio_toggle_mask(uint32_t mask);
  * \param mask          Drive all GPIOs, 0-29, according to mask
  * \returns rpexp_err_t Operation result
  */
-void rpexp_gpio_put_all(uint32_t mask);
+rpexp_err_t rpexp_gpio_set_all(uint32_t mask);
 
 
 /*! \brief Read the values of all [input] GPIOs

@@ -35,6 +35,7 @@ set(rp2040_expander_demo_sources
     ${APPLICATION_DIR}/host/rp2040exp_dap.c
     ${APPLICATION_DIR}/${PORTDIR}/rp2040exp_port.c
     ${APPLICATION_DIR}/demo/rp2040exp_api_test.c
+    ${APPLICATION_DIR}/demo/demo_stepper.c
 )
 
 add_executable(${APPLICATION} ${rp2040_expander_demo_sources})

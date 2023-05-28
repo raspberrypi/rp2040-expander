@@ -175,3 +175,8 @@ uint64_t port_get_time_us_64(void) {
 
     return time_us64;
 }
+
+
+void port_sleep_us_32(uint32_t time_us) {
+    (void) usleep(time_us);
+}

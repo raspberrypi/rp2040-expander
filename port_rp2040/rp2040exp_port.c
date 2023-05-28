@@ -118,3 +118,8 @@ const swdbb_helpers_t *port_get_swdbb_helpers(void) {
 uint64_t port_get_time_us_64(void) {
     return time_us_64();
 }
+
+
+void port_sleep_us_32(uint32_t time_us) {
+    sleep_us((uint64_t) time_us);
+}

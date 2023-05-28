@@ -30,5 +30,7 @@ typedef struct {
 const swdbb_helpers_t *port_get_swdbb_helpers(void);
 
 uint64_t port_get_time_us_64(void);
+void port_sleep_us_32(uint32_t time_us);
+
 
 #endif  // _RP2040EXP_PORT_API_H_

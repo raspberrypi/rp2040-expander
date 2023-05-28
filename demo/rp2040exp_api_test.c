@@ -10,20 +10,16 @@
 #ifdef __linux__
 #include <unistd.h>
 #include <stdlib.h>
-#include <time.h>
 #endif
 
 #include <stdio.h>
 #include <rp2040exp_port.h>
 #include <rp2040exp.h>
+#include <rp2040exp_port_api.h>
 #include <inttypes.h>
 
 #include "blink_prog.h"
-
-// "Mock up" *nix like timing functions for an RP2040 host
-#ifdef PICO_BUILD
-#define usleep(u)               sleep_us(u)
-#endif
+#include "demo_stepper.h"
 
 
 #define RAM_START               0x20000000ul
@@ -156,6 +152,14 @@ int main() {
 
     //------------------------------------------------------------------------
 
+    step = 19;  // get ROSC freq measurement
+    const int8_t stepper_motor_init_list[] = {0, 1, 2, -1};
+
+    rpexp_err = stepper_init(stepper_motor_init_list);
+    if (rpexp_err) goto end_tests;
+
+    //------------------------------------------------------------------------
+
     step = 20;  // get ROSC freq measurement
     rpexp_err = rpexp_rosc_measure_clock_freq_khz(&rosc_clock_freq_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     if (rpexp_err) goto end_tests;
@@ -164,7 +168,7 @@ int main() {
 
     step = 25;  // set new ROSC clock freq
 
-    for (uint32_t new_rosc_clk_freq_mhz = 4; new_rosc_clk_freq_mhz <= 60; new_rosc_clk_freq_mhz += 1) {
+    for (uint32_t new_rosc_clk_freq_mhz = 8; new_rosc_clk_freq_mhz <= 48; new_rosc_clk_freq_mhz += 8) {
 
         uint32_t new_rosc_clk_freq_khz = 1000ul * new_rosc_clk_freq_mhz;
 
@@ -287,7 +291,7 @@ int main() {
         rpexp_err = rpexp_gpio_toggle(TEST_TOGGLE_PIN);
         if (rpexp_err) goto end_tests;
 
-        (void) usleep(50000);
+        port_sleep_us_32(50000);
 
         data = rpexp_gpio_hi_get_all();
 
