@@ -10,8 +10,6 @@
 #include <rp2040exp_port.h>
 #include <rp2040exp.h>
 
-#define NUM_ELES(a)                 (sizeof(a) / sizeof(*(a)))
-
 // DAP control field and register address constants are defined below
 // NOTE:  The bits used are straight from the ADIv6 spec so can be used
 // directly to assemble the SWD header for transmission.

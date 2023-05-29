@@ -7,6 +7,8 @@
 #ifndef _RP2040EXP_PORT_API_H_
 #define _RP2040EXP_PORT_API_H_
 
+#define NUM_ELES(a)                 (sizeof(a) / sizeof(*(a)))
+
 typedef struct {
 
     rpexp_err_t (*init_swd_gpios)(void);
