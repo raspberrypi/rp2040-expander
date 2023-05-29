@@ -23,7 +23,7 @@
 
 
 #define RAM_START               0x20000000ul
-#define TEST_TOGGLE_PIN         15ul
+#define TEST_TOGGLE_PIN         7ul
 #define PUSH_BUTTON_INPUT_PIN   1 // HI GPIO 1
 
 #define TEMPERATURE_FORMAT      'C'
@@ -152,10 +152,17 @@ int main() {
 
     //------------------------------------------------------------------------
 
-    step = 19;  // get ROSC freq measurement
+    step = 18;
     const int8_t stepper_motor_init_list[] = {0, 1, 2, -1};
 
     rpexp_err = stepper_init(stepper_motor_init_list);
+    if (rpexp_err) goto end_tests;
+
+    step = 19;
+    rpexp_err = stepper_step(0, 1000);
+    if (rpexp_err) goto end_tests;
+
+    rpexp_err = stepper_step(0, -1000);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------

@@ -23,13 +23,13 @@
 
 #define NUM_OF_MOTOR_STEPS          4
 #define NUM_DRIVES_PER_MOTOR        4
-#define STEP_TIME_US                100000ul
+#define STEP_TIME_US                5000ul
 
 typedef struct {
     uint8_t gpios[NUM_DRIVES_PER_MOTOR];
 } motor_gpios_t;
 
-const uint8_t unipolar_step_seq[NUM_OF_MOTOR_STEPS] = { 9, 3, 6, 12 };
+const int8_t unipolar_step_seq[NUM_OF_MOTOR_STEPS] = { 9, 3, 6, 12 };
 
 // VITAL:  The code in this module assumes the GPIOs for each motor are contiguous!!
 const uint8_t motor_gpios_lsb[NUM_OF_MOTORS] = { 8, 12, 16 };
@@ -80,25 +80,28 @@ rpexp_err_t stepper_step(const uint8_t motor, int16_t count) {
     }
 
     rpexp_err_t rpexp_err = RPEXP_OK;
-    int8_t step = 1;
+    volatile int8_t step = 1;
 
     if (count < 0) {
         step = -1;
         count = 0 - count;
     }
 
-    uint8_t gpios_shift = motor_gpios_lsb[motor];
-    uint32_t gpios_mask = 0xFul << gpios_shift;
+    volatile uint8_t gpios_shift = motor_gpios_lsb[motor];
+    volatile uint32_t gpios_mask = 0xFul << gpios_shift;
 
     for ( ; count && rpexp_err == RPEXP_OK; count--) {
 
         motor_poss[motor] += step;
+        if (motor_poss[motor] < 0) {
+            motor_poss[motor] += NUM_OF_MOTOR_STEPS;
+        }
         motor_poss[motor] %= NUM_OF_MOTOR_STEPS;
 
-        uint32_t drive_bits = unipolar_step_seq[motor_poss[motor]];
+        volatile uint32_t drive_bits = (uint32_t) unipolar_step_seq[motor_poss[motor]];
         drive_bits <<= gpios_shift;
 
-        uint32_t gpios = rpexp_gpio_get_all();
+        volatile uint32_t gpios = rpexp_gpio_get_all();
         if (gpios == (uint32_t)-1) {
             return PREXP_ERR_READ;
         }
@@ -109,7 +112,9 @@ rpexp_err_t stepper_step(const uint8_t motor, int16_t count) {
         rpexp_err = rpexp_gpio_set_all(gpios);
         port_sleep_us_32(STEP_TIME_US);
 
-        gpios &= gpios_mask;
+        //port_sleep_us_32(500000ul);
+
+        gpios &= ~gpios_mask;
         rpexp_err = rpexp_gpio_set_all(gpios);
     }
 
