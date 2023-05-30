@@ -21,10 +21,10 @@
 #include "blink_prog.h"
 #include "demo_stepper.h"
 #include "demo_7seg.h"
+#include "demo_gpios.h"
 
 
 #define RAM_START               0x20000000ul
-#define TEST_TOGGLE_PIN         7ul
 #define PUSH_BUTTON_INPUT_PIN   1 // HI GPIO 1
 
 #define TEMPERATURE_FORMAT      'C'
@@ -84,25 +84,26 @@ int main() {
     if (rpexp_err) goto end_tests;
 
     step = 2;
-    rpexp_err = rpexp_gpio_init(TEST_TOGGLE_PIN);
+    rpexp_err = rpexp_gpio_init(GPIO_EXTRA_LED_PIN);
     if (rpexp_err) goto end_tests;
 
     step = 3;
-    rpexp_err = rpexp_gpio_set_dir(TEST_TOGGLE_PIN, GPIO_DIR_OUT);
+    rpexp_err = rpexp_gpio_set_dir(GPIO_EXTRA_LED_PIN, GPIO_DIR_OUT);
     if (rpexp_err) goto end_tests;
 
     step = 4;
-    rpexp_err = rpexp_gpio_set(TEST_TOGGLE_PIN);
+    rpexp_err = rpexp_gpio_set(GPIO_EXTRA_LED_PIN);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
     step = 5;
-    rpexp_err = rpexp_clock_gpio_init(25, GPIO_CLKOUT_CLK_REF, 5000000);
+    // Flash the Pico board LED from the [slowed] system clock
+    rpexp_err = rpexp_clock_gpio_init(GPIO_PICO_LED, GPIO_CLKOUT_CLK_REF, 5000000);
     if (rpexp_err) goto end_tests;
 
     step = 6;
-    rpexp_err = rpexp_clock_gpio_init(21, GPIO_CLKOUT_CLK_REF, 10);
+    rpexp_err = rpexp_clock_gpio_init(GPIO_CLOCKOUT, GPIO_CLKOUT_CLK_REF, 10);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
@@ -239,7 +240,7 @@ int main() {
     if (rpexp_err) goto end_tests;
 
     step = 44;
-    const int8_t uart_gpio_list[] = {0, 1, 2, 3, 4, -1};
+    const int8_t uart_gpio_list[] = {GPIO_UART_0_TXD, GPIO_UART_0_RXD, -1};  // No flow control pins in this app
     rpexp_err = rpexp_uart_assign_gpios(uart_gpio_list);
     if (rpexp_err) goto end_tests;
 
@@ -295,7 +296,7 @@ int main() {
     if (rpexp_err) goto end_tests;
 
     step = 62;
-    rpexp_err = read_adc_gpio_voltage(0);  // GPIO26
+    rpexp_err = read_adc_gpio_voltage(GPIO_26_ADC_0);
     if (rpexp_err) goto end_tests;
 
     step = 63;
@@ -315,7 +316,7 @@ int main() {
 
     while (1) {
 
-        rpexp_err = rpexp_gpio_toggle(TEST_TOGGLE_PIN);
+        rpexp_err = rpexp_gpio_toggle(GPIO_EXTRA_LED_PIN);
         if (rpexp_err) goto end_tests;
 
         port_sleep_us_32(50000);
@@ -327,7 +328,7 @@ int main() {
         }
         else if (0 == ((1ul << PUSH_BUTTON_INPUT_PIN) & data)) {
 
-            rpexp_err = rpexp_gpio_clr(TEST_TOGGLE_PIN);
+            rpexp_err = rpexp_gpio_clr(GPIO_EXTRA_LED_PIN);
             if (rpexp_err) goto end_tests;
             printf("Button pressed!\n");
             break;
@@ -392,7 +393,7 @@ static rpexp_err_t read_chip_temperature(float *ptemp) {
     rpexp_err_t rpexp_err = rpexp_adc_set_temp_sensor_enabled(true);
 
     if (rpexp_err == RPEXP_OK) {
-        rpexp_err = rpexp_adc_select_input(4);  // termperature
+        rpexp_err = rpexp_adc_select_input(4);  // temperature
     }
 
     if (rpexp_err == RPEXP_OK) {

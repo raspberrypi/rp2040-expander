@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <rp2040exp_port_api.h>
 #include "demo_stepper.h"
+#include "demo_gpios.h"
 
 
 #define NUM_OF_MOTOR_STEPS          4
@@ -32,7 +33,7 @@ typedef struct {
 const int8_t unipolar_step_seq[NUM_OF_MOTOR_STEPS] = { 9, 3, 6, 12 };
 
 // VITAL:  The code in this module assumes the GPIOs for each motor are contiguous!!
-const uint8_t motor_gpios_lsb[NUM_OF_MOTORS] = { 8, 12  /*, 16 */ };
+const uint8_t motor_gpios_lsb[NUM_OF_MOTORS] = { GPIO_STEPPER_0_0, GPIO_STEPPER_1_0 };
 static int8_t motor_poss[NUM_OF_MOTORS];
 
 
@@ -111,8 +112,6 @@ rpexp_err_t stepper_step(const uint8_t motor, int16_t count) {
 
         rpexp_err = rpexp_gpio_set_all(gpios);
         port_sleep_us_32(STEP_TIME_US);
-
-        //port_sleep_us_32(500000ul);
 
         gpios &= ~gpios_mask;
         rpexp_err = rpexp_gpio_set_all(gpios);

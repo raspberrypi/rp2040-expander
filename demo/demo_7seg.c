@@ -19,11 +19,11 @@
 #include <inttypes.h>
 #include <rp2040exp_port_api.h>
 #include "demo_7seg.h"
+#include "demo_gpios.h"
 
-
-#define MAX7219_CLK                 22
-#define MAX7219_DAT                 26
-#define MAX7219_CS                  27
+#define MAX7219_CLK                 GPIO_7SEG_CLK
+#define MAX7219_DAT                 GPIO_7SEG_DAT
+#define MAX7219_CS                  GPIO_7SEG_CS
 #define MAX7219_GPIOS               ((1ul << MAX7219_CLK) | (1ul << MAX7219_DAT) | (1ul << MAX7219_CS))
 
 #define NUM_OF_DIGITS               8
