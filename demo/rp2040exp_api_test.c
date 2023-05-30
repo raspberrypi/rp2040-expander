@@ -92,7 +92,7 @@ int main() {
     if (rpexp_err) goto end_tests;
 
     step = 4;
-    rpexp_err = rpexp_gpio_set(GPIO_EXTRA_LED_PIN);
+    rpexp_err = rpexp_gpio_clr(GPIO_EXTRA_LED_PIN);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
@@ -125,7 +125,7 @@ int main() {
     step = 15;
     s7_led_display_init();
 
-    static const uint8_t led_message[] = {"Raspberry Pi -- Pico expander"};
+    static const uint8_t led_message[] = {"Raspberry Pi - Pico expander"};
 
     for (int i = 0; ; i++) {
 
@@ -136,22 +136,30 @@ int main() {
         }
 
         s7_insert_char_rh(c);
-        port_sleep_us_32(250000ul);
+        port_sleep_us_32(100000ul);
     }
 
     //------------------------------------------------------------------------
 
     step = 20;
-    static const int8_t stepper_motor_init_list[] = {0, 1, /*2,*/ -1};
+    static const int8_t stepper_motor_init_list[] = {0, 1, -1};
     rpexp_err = stepper_init(stepper_motor_init_list);
     if (rpexp_err) goto end_tests;
 
     step = 21;
-    rpexp_err = stepper_step(0, 1000);
+    rpexp_err = stepper_step(0, 500);
     if (rpexp_err) goto end_tests;
 
     step = 22;
-    rpexp_err = stepper_step(0, -1000);
+    rpexp_err = stepper_step(1, -500);
+    if (rpexp_err) goto end_tests;
+
+    step = 23;
+    rpexp_err = stepper_step(0, -500);
+    if (rpexp_err) goto end_tests;
+
+    step = 24;
+    rpexp_err = stepper_step(1, 500);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
@@ -196,30 +204,28 @@ int main() {
 
     step = 35;  // set new ROSC clock freq
 
-    for (uint32_t new_rosc_clk_freq_mhz = 8; new_rosc_clk_freq_mhz <= 48; new_rosc_clk_freq_mhz += 8) {
+    uint32_t new_rosc_clk_freq_mhz = 50;
+    uint32_t new_rosc_clk_freq_khz = 1000ul * new_rosc_clk_freq_mhz;
 
-        uint32_t new_rosc_clk_freq_khz = 1000ul * new_rosc_clk_freq_mhz;
+    rpexp_err = rpexp_rosc_set_faster_clock_freq(new_rosc_clk_freq_khz, &rosc_clock_freq_khz);
+    if (rpexp_err) goto end_tests;
 
-        rpexp_err = rpexp_rosc_set_faster_clock_freq(new_rosc_clk_freq_khz, &rosc_clock_freq_khz);
-        if (rpexp_err) goto end_tests;
+    rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
+    if (rpexp_err) goto end_tests;
 
-        rpexp_err = rpexp_rosc_get_freq_ab_bits(&freq_bits);
-        if (rpexp_err) goto end_tests;
+    rpexp_err = rpexp_rosc_get_div(&rosc_div);
+    if (rpexp_err) goto end_tests;
 
-        rpexp_err = rpexp_rosc_get_div(&rosc_div);
-        if (rpexp_err) goto end_tests;
+    printf("Requested ROSC clock freq (kHz): %5" PRId32 ", ", new_rosc_clk_freq_khz);
+    printf("resulting freq: %5" PRId32 ", ", rosc_clock_freq_khz);
 
-        printf("Requested ROSC clock freq (kHz): %5" PRId32 ", ", new_rosc_clk_freq_khz);
-        printf("resulting freq: %5" PRId32 ", ", rosc_clock_freq_khz);
+    // integer maths to create a 'part-per thousand' metric
+    rosc_clock_freq_khz *= 20;
+    uint32_t result_ppk = rosc_clock_freq_khz / (new_rosc_clk_freq_khz / 100);
+    result_ppk += 1; // round
+    result_ppk /= 2;
 
-        // integer maths to create a 'part-per thousand' metric
-        rosc_clock_freq_khz *= 20;
-        uint32_t result_ppk = rosc_clock_freq_khz / (new_rosc_clk_freq_khz / 100);
-        result_ppk += 1; // round
-        result_ppk /= 2;
-
-        printf("accuracy metric, parts per 1000: %4" PRId32 "\n", result_ppk);
-    }
+    printf("accuracy metric, parts per 1000: %4" PRId32 "\n", result_ppk);
 
     //------------------------------------------------------------------------
 
@@ -288,25 +294,25 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 60;
-    rpexp_err = rpexp_adc_block_enable(true);
+    //rpexp_err = rpexp_adc_block_enable(true);
     if (rpexp_err) goto end_tests;
 
     step = 61;
-    rpexp_err = rpexp_adc_init();
+    //rpexp_err = rpexp_adc_init();
     if (rpexp_err) goto end_tests;
 
     step = 62;
-    rpexp_err = read_adc_gpio_voltage(GPIO_26_ADC_0);
+    //rpexp_err = read_adc_gpio_voltage(GPIO_26_ADC_0);
     if (rpexp_err) goto end_tests;
 
     step = 63;
     float temperature;
-    read_chip_temperature(&temperature);
+    //read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;
 
-    printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
+    //printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
 
-    read_chip_temperature(&temperature);
+    //read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
