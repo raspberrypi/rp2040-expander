@@ -20,6 +20,7 @@
 
 #include "blink_prog.h"
 #include "demo_stepper.h"
+#include "demo_7seg.h"
 
 
 #define RAM_START               0x20000000ul
@@ -121,6 +122,40 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 15;
+    s7_led_display_init();
+
+    static const uint8_t led_message[] = {"Raspberry Pi -- Pico expander"};
+
+    for (int i = 0; ; i++) {
+
+        uint8_t c = led_message[i];
+
+        if (!c) {
+            break;
+        }
+
+        s7_insert_char_rh(c);
+        port_sleep_us_32(250000ul);
+    }
+
+    //------------------------------------------------------------------------
+
+    step = 20;
+    static const int8_t stepper_motor_init_list[] = {0, 1, /*2,*/ -1};
+    rpexp_err = stepper_init(stepper_motor_init_list);
+    if (rpexp_err) goto end_tests;
+
+    step = 21;
+    rpexp_err = stepper_step(0, 1000);
+    if (rpexp_err) goto end_tests;
+
+    step = 22;
+    rpexp_err = stepper_step(0, -1000);
+    if (rpexp_err) goto end_tests;
+
+    //------------------------------------------------------------------------
+
+    step = 25;
     lfsr32 = LFSR32_SEED;  // need predictable 'random numbers' :)
 
     for (ram_offset = 0; ram_offset < (4 * RAM_TEST_LENGTH_WORDS); ) {
@@ -133,7 +168,7 @@ int main() {
         ram_offset += (4 * RDWR_BUFF_SIZE_WORDS);
     }
 
-    step = 16;
+    step = 26;
     lfsr32 = LFSR32_SEED;  // re-seed for checking
 
     for (ram_offset = 0; ram_offset < (4 * RAM_TEST_LENGTH_WORDS); ) {
@@ -152,28 +187,13 @@ int main() {
 
     //------------------------------------------------------------------------
 
-    step = 18;
-    const int8_t stepper_motor_init_list[] = {0, 1, 2, -1};
-
-    rpexp_err = stepper_init(stepper_motor_init_list);
-    if (rpexp_err) goto end_tests;
-
-    step = 19;
-    rpexp_err = stepper_step(0, 1000);
-    if (rpexp_err) goto end_tests;
-
-    rpexp_err = stepper_step(0, -1000);
-    if (rpexp_err) goto end_tests;
-
-    //------------------------------------------------------------------------
-
-    step = 20;  // get ROSC freq measurement
+    step = 30;  // get ROSC freq measurement
     rpexp_err = rpexp_rosc_measure_clock_freq_khz(&rosc_clock_freq_khz, MIN_ROSC_FREQ_SAMPLE_TIME_US);
     if (rpexp_err) goto end_tests;
 
     printf("Boot ROSC clock frequency (kHz): %" PRId32 "\n", rosc_clock_freq_khz);
 
-    step = 25;  // set new ROSC clock freq
+    step = 35;  // set new ROSC clock freq
 
     for (uint32_t new_rosc_clk_freq_mhz = 8; new_rosc_clk_freq_mhz <= 48; new_rosc_clk_freq_mhz += 8) {
 
@@ -202,50 +222,50 @@ int main() {
 
     //------------------------------------------------------------------------
 
-    step = 30;  // Initialise UARTs
+    step = 40;  // Initialise UARTs
     rpexp_err = rpexp_uart_enable(UART0, true);
     if (rpexp_err) goto end_tests;
 
-    step = 31;  // Initialise UARTs
+    step = 41;  // Initialise UARTs
     rpexp_err = rpexp_uart_enable(UART1, true);
     if (rpexp_err) goto end_tests;
 
-    step = 32;  // Initialise UARTs
+    step = 42;  // Initialise UARTs
     rpexp_err = rpexp_uart_init(UART0, 115200, 8, 1, UART_NO_PARITY, false, false);
     if (rpexp_err) goto end_tests;
 
-    step = 33;  // Initialise UARTs
+    step = 43;  // Initialise UARTs
     rpexp_err = rpexp_uart_init(UART1, 115200, 8, 1, UART_NO_PARITY, false, false);
     if (rpexp_err) goto end_tests;
 
-    step = 34;
+    step = 44;
     const int8_t uart_gpio_list[] = {0, 1, 2, 3, 4, -1};
     rpexp_err = rpexp_uart_assign_gpios(uart_gpio_list);
     if (rpexp_err) goto end_tests;
 
-    step = 35;
+    step = 45;
     rpexp_err = rpexp_uart_puts(UART0, "\r\nHello UART world!\r\nThis is a test message brought to you by expander - built: ");
     if (rpexp_err) goto end_tests;
 
-    step = 36;
+    step = 46;
     rpexp_err = rpexp_uart_puts(UART0,  __DATE__);
     if (rpexp_err) goto end_tests;
 
-    step = 37;
+    step = 47;
     rpexp_err = rpexp_uart_putc(UART0, (char)' ');
     if (rpexp_err) goto end_tests;
 
-    step = 38;
+    step = 48;
     rpexp_err = rpexp_uart_puts(UART0,  __TIME__);
     if (rpexp_err) goto end_tests;
 
-    step = 39;
+    step = 49;
     rpexp_err = rpexp_uart_puts(UART0, "\r\n");
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
-    step = 40;
+    step = 50;
     rpexp_err = rpexp_uart_puts(UART0, "UART0 getc() test; typed characters will be printed - press 'Escape' to exit\r\n");
 
     do {
@@ -266,19 +286,19 @@ int main() {
 
     //------------------------------------------------------------------------
 
-    step = 50;
+    step = 60;
     rpexp_err = rpexp_adc_block_enable(true);
     if (rpexp_err) goto end_tests;
 
-    step = 51;
+    step = 61;
     rpexp_err = rpexp_adc_init();
     if (rpexp_err) goto end_tests;
 
-    step = 52;
+    step = 62;
     rpexp_err = read_adc_gpio_voltage(0);  // GPIO26
     if (rpexp_err) goto end_tests;
 
-    step = 53;
+    step = 63;
     float temperature;
     read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;
@@ -291,7 +311,7 @@ int main() {
     //------------------------------------------------------------------------
 
     printf("LED flash loop, press 'BOOTSEL' button to continue ...\n");
-    step = 55;
+    step = 65;
 
     while (1) {
 
@@ -317,7 +337,7 @@ int main() {
 
     //------------------------------------------------------------------------
 
-    step = 60;
+    step = 70;
     printf("Run code from RAM ...\n");
     rpexp_err = rpexp_load_and_run_ram_program((const uint32_t *)blink_blink_bin,
                                               ((sizeof(blink_blink_bin) + 3) / 4));

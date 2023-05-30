@@ -32,7 +32,7 @@ typedef struct {
 const int8_t unipolar_step_seq[NUM_OF_MOTOR_STEPS] = { 9, 3, 6, 12 };
 
 // VITAL:  The code in this module assumes the GPIOs for each motor are contiguous!!
-const uint8_t motor_gpios_lsb[NUM_OF_MOTORS] = { 8, 12, 16 };
+const uint8_t motor_gpios_lsb[NUM_OF_MOTORS] = { 8, 12  /*, 16 */ };
 static int8_t motor_poss[NUM_OF_MOTORS];
 
 

@@ -22,9 +22,9 @@
 
 
 #define MAX7219_CLK                 22
-#define MAX7219_DAT                 27
-#define MAX7219_CS                  28
-#define MAX7219_GPIOS               (MAX7219_CLK | MAX7219_DAT | MAX7219_CS)
+#define MAX7219_DAT                 26
+#define MAX7219_CS                  27
+#define MAX7219_GPIOS               ((1ul << MAX7219_CLK) | (1ul << MAX7219_DAT) | (1ul << MAX7219_CS))
 
 #define NUM_OF_DIGITS               8
 
@@ -141,34 +141,31 @@ static uint8_t lookup_character(uint8_t c)
 {
     uint8_t r;
 
-    if (0 == (r = find_punctuation(c)))
-    {
+    if (0 == (r = find_punctuation(c))) {
+
         r = NUMBER_CHARACTERS;
 
-        if (c >= (uint8_t)'0' && c <= (uint8_t)'9')
-        {
+        if (c >= (uint8_t)'0' && c <= (uint8_t)'9') {
             r = c - (uint8_t) '0';
         }
-        else if (c >= (uint8_t)'a' && c <= (uint8_t)'z')
-        {
+
+        else if (c >= (uint8_t)'a' && c <= (uint8_t)'z') {
             r = 10 + c - (uint8_t) 'a';
         }
-        else if (c >= (uint8_t)'A' && c <= (uint8_t)'Z')
-        {
+
+        else if (c >= (uint8_t)'A' && c <= (uint8_t)'Z') {
             r = 10 + c - (uint8_t) 'A';
         }
-        else if (c == (uint8_t)' ')
-        {
+
+        else if (c == (uint8_t)' ') {
             r = CHAR_SPACE;
         }
 
         if (r < NUMBER_CHARACTERS)
         {
             r = character_map[r];
-        }
-        else
-        {
-            r = (SEG_DP);
+        } else {
+            r = SEG_DP;
         }
     }
 
@@ -209,8 +206,8 @@ static void max2719_send_u16(uint16_t word) {
 static void display_init(void) {
 
     rpexp_gpio_block_enable(true);
-    rpexp_gpio_init(MAX7219_GPIOS);
-    rpexp_gpio_set_dir(MAX7219_GPIOS, GPIO_DIR_OUT);
+    rpexp_gpio_init_mask(MAX7219_GPIOS);
+    rpexp_gpio_set_dir_out_masked(MAX7219_GPIOS);
 
     drive_gpio(MAX7219_CS, 1);
     drive_gpio(MAX7219_DAT, 0);
@@ -220,7 +217,7 @@ static void display_init(void) {
     max2719_send_u16(MAX7219_DISPLAY_TEST  | 0);  // NOT display test
     max2719_send_u16(MAX7219_DECODE_MODE   | 0);  // RAW segment data
     max2719_send_u16(MAX7219_SCAN_LIMIT    | (NUM_OF_DIGITS - 1));  // Scan all
-    max2719_send_u16(MAX7219_INTENSITY     | 15); // Intensity 0-15
+    max2719_send_u16(MAX7219_INTENSITY     | 10); // Intensity 0-15
     max2719_send_u16(MAX7219_SHUTDOWN_MODE | 1); // NOT shutdown!
 }
 
@@ -251,7 +248,6 @@ void s7_led_display_init(void) {
     for (int i = 0; i < NUM_OF_DIGITS; i++) {
         segment_data[i] = character_map[CHAR_SPACE];
     }
-
 
     display_init();
 
