@@ -994,6 +994,36 @@ rpexp_err_t rpexp_gpio_set_pulls(uint32_t gpio, bool up, bool down) {
         PADS_BANK0_GPIO0_PUE_BITS | PADS_BANK0_GPIO0_PDE_BITS);
 }
 
+
+rpexp_err_t rpexp_gpio_set_pullup_mask(uint32_t mask) {
+
+    rpexp_err_t rpexp_err = RPEXP_OK;
+
+    for (uint32_t bit = 0; bit < NUM_BANK0_GPIOS && rpexp_err == RPEXP_OK; bit++) {
+
+        if (mask & (1ul << bit)) {
+            rpexp_err = rpexp_gpio_set_pulls(bit, true, false);
+        }
+    }
+
+    return rpexp_err;
+}
+
+
+rpexp_err_t rpexp_gpio_set_pulldown_mask(uint32_t mask) {
+
+    rpexp_err_t rpexp_err = RPEXP_OK;
+
+    for (uint32_t bit = 0; bit < NUM_BANK0_GPIOS && rpexp_err == RPEXP_OK; bit++) {
+
+        if (mask & (1ul << bit)) {
+            rpexp_err = rpexp_gpio_set_pulls(bit, false, true);
+        }
+    }
+
+    return rpexp_err;
+}
+
 //----------------------------------------------------------------------------
 
 rpexp_err_t rpexp_adc_block_enable(bool enable) {

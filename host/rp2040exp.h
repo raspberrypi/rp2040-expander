@@ -389,6 +389,22 @@ uint32_t  rpexp_gpio_hi_get_all(void);
 rpexp_err_t rpexp_gpio_set_pulls(uint32_t gpio, bool up, bool down);
 
 
+/*! \brief Enable pull-ups on every bit appearing in the mask
+ *
+ * \param himask        Bitmask of GPIOs to pull-up, bits 0-29
+ * \returns rpexp_err_t Operation result
+ */
+rpexp_err_t rpexp_gpio_set_pullup_mask(uint32_t mask);
+
+
+/*! \brief Enable pulldowns on every bit appearing in the mask
+ *
+ * \param himask        Bitmask of GPIOs to pull-down, bits 0-29
+ * \returns rpexp_err_t Operation result
+ */
+rpexp_err_t rpexp_gpio_set_pulldown_mask(uint32_t mask);
+
+
 /*! \brief Disable any pull ups and/or pull downs on specific GPIO
  *
  * \param gpio          GPIO number between 0 and 29

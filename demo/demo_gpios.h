@@ -13,6 +13,7 @@
 #define GPIO_RENC_0         2
 #define GPIO_RENC_1         3
 #define GPIO_RENC_2         4
+#define GPIO_RENC_MASK      ((1ul << GPIO_RENC_0) | (1ul << GPIO_RENC_1) | (1ul << GPIO_RENC_2))
 
 // VITAL: The code in the stepper module assumes the GPIOs for each motor are *contiguous*!!
 #define GPIO_STEPPER_0_0    6

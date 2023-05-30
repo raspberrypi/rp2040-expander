@@ -18,11 +18,11 @@
 #include <rp2040exp_port_api.h>
 #include <inttypes.h>
 
-#include "blink_prog.h"
 #include "demo_stepper.h"
 #include "demo_7seg.h"
 #include "demo_gpios.h"
 
+//#include "blink_prog.h"
 
 #define RAM_START               0x20000000ul
 #define PUSH_BUTTON_INPUT_PIN   1 // HI GPIO 1
@@ -92,7 +92,7 @@ int main() {
     if (rpexp_err) goto end_tests;
 
     step = 4;
-    rpexp_err = rpexp_gpio_clr(GPIO_EXTRA_LED_PIN);
+    rpexp_err = rpexp_gpio_set(GPIO_EXTRA_LED_PIN);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
@@ -123,6 +123,7 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 15;
+    printf("Driving 7-segment display ...\n");
     s7_led_display_init();
 
     static const uint8_t led_message[] = {"Raspberry Pi - Pico expander"};
@@ -136,12 +137,14 @@ int main() {
         }
 
         s7_insert_char_rh(c);
-        port_sleep_us_32(100000ul);
+        port_sleep_us_32(200000ul);
     }
 
     //------------------------------------------------------------------------
 
     step = 20;
+    printf("Driving stepper motors ...\n");
+
     static const int8_t stepper_motor_init_list[] = {0, 1, -1};
     rpexp_err = stepper_init(stepper_motor_init_list);
     if (rpexp_err) goto end_tests;
@@ -272,19 +275,62 @@ int main() {
 
     //------------------------------------------------------------------------
 
+#define LED_FLASH_RATE_US   50000ul
+
+    const char uart_string_0[] = { "UART0 getc() test; typed characters will be printed & the LED flashed\r\n" };
+    const char uart_string_1[] = { "Press 'Escape' or the 'BOOTSEL'to exit - or this will timeout in 3 seconds\r\n" };
+
     step = 50;
-    rpexp_err = rpexp_uart_puts(UART0, "UART0 getc() test; typed characters will be printed - press 'Escape' to exit\r\n");
+    printf("%s", uart_string_0);
+    printf("%s", uart_string_1);
+    rpexp_err = rpexp_uart_puts(UART0, uart_string_0 );
+    rpexp_err = rpexp_uart_puts(UART0, uart_string_1);
+
+    uint64_t timestamp = port_get_time_us_64();
+    uint64_t led_time = timestamp;
 
     do {
-        int data;
-        rpexp_err = rpexp_uart_getc(UART0, &data);
+        int idata;
+
+        uint64_t time_now = port_get_time_us_64();
+
+        if (time_now > (led_time + LED_FLASH_RATE_US)) {
+            rpexp_err = rpexp_gpio_toggle(GPIO_EXTRA_LED_PIN);
+            if (rpexp_err) goto end_tests;
+            led_time += LED_FLASH_RATE_US;
+        }
+
+        rpexp_err = rpexp_uart_getc_non_blocking(UART0, &idata);
 
         if (!rpexp_err) {
-            if (data == (int)'\e') {
-                printf("\nEscape\n");
+
+            if (idata != -1) {
+                if (idata == (int)'\e') {
+                    printf("\nEscape\n");
+                    break;
+                }
+
+                printf("%c", idata);
+                timestamp = time_now;  // refresh
+            }
+            else {
+                if (port_get_time_us_64() > (timestamp + (uint64_t)3000000ul)) {
+                    printf("\nTimed out!\n");
+                    break;
+                }
+            }
+
+            uint32_t higpios = rpexp_gpio_hi_get_all();
+
+            if (higpios == (uint32_t)-1) {
+                rpexp_err = RPEXP_ERR_TEST;
+            }
+            else if (0 == ((1ul << PUSH_BUTTON_INPUT_PIN) & higpios)) {
+
+                rpexp_err = rpexp_gpio_clr(GPIO_EXTRA_LED_PIN);
+                printf("Button pressed!\n");
                 break;
             }
-            printf("%c", data);
         }
 
     } while (!rpexp_err);
@@ -307,48 +353,35 @@ int main() {
 
     step = 63;
     float temperature;
-    //read_chip_temperature(&temperature);
+    read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;
 
-    //printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
+    printf("Onboard temperature = %.01f %c\n", temperature, TEMPERATURE_FORMAT);
 
-    //read_chip_temperature(&temperature);
-    if (rpexp_err) goto end_tests;
-
-    //------------------------------------------------------------------------
-
-    printf("LED flash loop, press 'BOOTSEL' button to continue ...\n");
-    step = 65;
-
-    while (1) {
-
-        rpexp_err = rpexp_gpio_toggle(GPIO_EXTRA_LED_PIN);
-        if (rpexp_err) goto end_tests;
-
-        port_sleep_us_32(50000);
-
-        data = rpexp_gpio_hi_get_all();
-
-        if (data == (uint32_t)-1) {
-            rpexp_err = RPEXP_ERR_TEST;
-        }
-        else if (0 == ((1ul << PUSH_BUTTON_INPUT_PIN) & data)) {
-
-            rpexp_err = rpexp_gpio_clr(GPIO_EXTRA_LED_PIN);
-            if (rpexp_err) goto end_tests;
-            printf("Button pressed!\n");
-            break;
-        }
-    }
+    read_chip_temperature(&temperature);
     if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
     step = 70;
-    printf("Run code from RAM ...\n");
-    rpexp_err = rpexp_load_and_run_ram_program((const uint32_t *)blink_blink_bin,
-                                              ((sizeof(blink_blink_bin) + 3) / 4));
+    rpexp_err = rpexp_gpio_init_mask(GPIO_RENC_MASK);
     if (rpexp_err) goto end_tests;
+
+    step = 71;
+    rpexp_err = rpexp_gpio_set_dir_in_masked(GPIO_RENC_MASK);
+    if (rpexp_err) goto end_tests;
+
+    step = 72;
+    rpexp_err = rpexp_gpio_set_pullup_mask(GPIO_RENC_MASK);
+    if (rpexp_err) goto end_tests;
+
+    //------------------------------------------------------------------------
+
+    //step = 80;
+    //printf("Run code from RAM ...\n");
+    //rpexp_err = rpexp_load_and_run_ram_program((const uint32_t *)blink_blink_bin,
+    //                                          ((sizeof(blink_blink_bin) + 3) / 4));
+    //if (rpexp_err) goto end_tests;
 
     //------------------------------------------------------------------------
 
