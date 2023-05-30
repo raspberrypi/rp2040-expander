@@ -34,7 +34,8 @@
 
 #define GPIO_PICO_LED       25
 
-#define GPIO_26_ADC_0       26
+#define GPIO_26_IS_ADC_0    26
+#define GPIO_ADC_0          (GPIO_26_IS_ADC_0 - 26)
 
 #define GPIO_7SEG_DAT       27
 #define GPIO_7SEG_CS        28

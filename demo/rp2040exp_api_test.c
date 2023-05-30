@@ -294,15 +294,15 @@ int main() {
     //------------------------------------------------------------------------
 
     step = 60;
-    //rpexp_err = rpexp_adc_block_enable(true);
+    rpexp_err = rpexp_adc_block_enable(true);
     if (rpexp_err) goto end_tests;
 
     step = 61;
-    //rpexp_err = rpexp_adc_init();
+    rpexp_err = rpexp_adc_init();
     if (rpexp_err) goto end_tests;
 
     step = 62;
-    //rpexp_err = read_adc_gpio_voltage(GPIO_26_ADC_0);
+    rpexp_err = read_adc_gpio_voltage(GPIO_ADC_0);
     if (rpexp_err) goto end_tests;
 
     step = 63;
