@@ -344,8 +344,8 @@ static rpexp_err_t common_rosc_set_freq_ab_bits(uint32_t freq_bits32) {
 
 static rpexp_err_t uart_set_baudrate(uart_chan_t uart, uint32_t req_baudrate, uint32_t *pactual_baudrate) {
 
-    if (pactual_baudrate) {
-        *pactual_baudrate = 0;
+    if (!pactual_baudrate) {
+        return RPEXP_ERR_API_ARG;
     }
 
     if (!system_clock_frequency_khz) {
@@ -381,7 +381,7 @@ static rpexp_err_t uart_set_baudrate(uart_chan_t uart, uint32_t req_baudrate, ui
         rpexp_err = rpexp_hw_set_bits(_reg(uart_addr[uart]->lcr_h), 0);
     }
 
-    if (rpexp_err == RPEXP_OK && pactual_baudrate) {
+    if (rpexp_err == RPEXP_OK) {
         *pactual_baudrate = (4 * system_clock_frequency_hz) / (64 * baud_ibrd + baud_fbrd);
     }
 
@@ -1447,7 +1447,9 @@ rpexp_err_t rpexp_uart_init(uart_chan_t uart,
                             uart_parity_type_t parity,
                             bool cts, bool rts) {
 
-    rpexp_err_t rpexp_err = uart_set_baudrate(uart, baudrate, NULL);
+    uint32_t acual_baudrate;
+
+    rpexp_err_t rpexp_err = uart_set_baudrate(uart, baudrate, &acual_baudrate);
 
     if (rpexp_err == RPEXP_OK) {
         rpexp_err = uart_set_format(uart, data_bits, stop_bits, parity);
