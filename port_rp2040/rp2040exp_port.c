@@ -18,8 +18,8 @@
 static_assert(HALF_CLOCK_CYCLE_US != 0, "SWD clock rate is too fast for: sleep_us()");
 
 
-// private helper functions for an RP2040 host (using the Pico-SDK)
-static rpexp_err_t init_swd_gpios(void) {
+rpexp_err_t port_init_swd_gpios(void) {
+
     gpio_init(PIN_SWCLK);
     gpio_init(PIN_SWDIO);
 
@@ -32,7 +32,8 @@ static rpexp_err_t init_swd_gpios(void) {
     return RPEXP_OK;
 }   
 
-static void inline set_swdio_as_output(bool out) {
+
+inline void port_set_swdio_as_output(bool out) {
     if (out) {
         gpio_set_dir(PIN_SWDIO, GPIO_OUT);
     } else {
@@ -40,7 +41,8 @@ static void inline set_swdio_as_output(bool out) {
     }
 }   
 
-static void inline set_swdio(bool swdio) {
+
+inline void port_set_swdio(bool swdio) {
     if (swdio) {
         gpio_put(PIN_SWDIO, 1);
     } else {
@@ -48,25 +50,28 @@ static void inline set_swdio(bool swdio) {
     }
 }    
 
-static void inline set_swclk(bool swclk) {
+
+inline void port_set_swclk(bool swclk) {
     if (swclk) {
         gpio_put(PIN_SWCLK, 1);
     } else {
         gpio_put(PIN_SWCLK, 0);
     }
-}    
+}
 
-static bool inline get_swdio(void) {
+
+inline bool port_get_swdio(void) {
     return gpio_get(PIN_SWDIO);
 }
 
-static void inline delay_half_clock(void) {
+
+inline void port_delay_half_clock(void) {
   //sleep_us(HALF_CLOCK_CYCLE_US);
 }
 
 
 #ifdef DEBUG_SWD_ON_GPIOS  // debug GPIO helpers
-static void inline dbg_gpio_init(void) {
+inline void port_dbg_gpio_init(void) {
 
     gpio_init(DBG_GPIO_SPI_CSN);
     gpio_init(DBG_GPIO_RXED);
@@ -78,7 +83,7 @@ static void inline dbg_gpio_init(void) {
     gpio_set_dir(DBG_GPIO_RXED, GPIO_OUT);
 }
 
-static void inline dbg_gpio_set(bool pin, bool high) {
+inline void port_dbg_gpio_set(bool pin, bool high) {
     if (high) {
         gpio_put(pin, 1);
     } else {
@@ -87,39 +92,13 @@ static void inline dbg_gpio_set(bool pin, bool high) {
 }
 #endif  // DEBUG_SWD_ON_GPIOS
 
-//----------------------------------------------------------------------------
-
-static const swdbb_helpers_t swdbb_helpers =
-{
-    .init_swd_gpios      = init_swd_gpios,
-    .set_swdio_as_output = set_swdio_as_output,
-    .set_swdio           = set_swdio,
-    .set_swclk           = set_swclk,
-    .get_swdio           = get_swdio,
-    .delay_half_clock    = delay_half_clock
-
-#ifdef DEBUG_SWD_ON_GPIOS  // debug GPIO helpers
-  , .dbg_gpio_init      = dbg_gpio_init
-  , .dbg_gpio_set       = dbg_gpio_set
-#endif
-};
-
-//----------------------------------------------------------------------------
-
-// Module API
-
-// The function returns the address of the structure with the SWD helper function pointers in it.
-const swdbb_helpers_t *port_get_swdbb_helpers(void) {
-    return &swdbb_helpers;
-}
-
 
 // Use SDK timer read function
-uint64_t port_get_time_us_64(void) {
+inline uint64_t port_get_time_us_64(void) {
     return time_us_64();
 }
 
 
-void port_sleep_us_32(uint32_t time_us) {
+inline void port_sleep_us_32(uint32_t time_us) {
     sleep_us((uint64_t) time_us);
 }

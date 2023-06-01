@@ -24,7 +24,8 @@ static struct gpiod_chip *chip = NULL;
 static struct gpiod_line *hswclk;
 static struct gpiod_line *hswdio;
 
-static rpexp_err_t init_swd_gpios(void) {
+
+rpexp_err_t port_init_swd_gpios(void) {
 
     if (!chip) {
         chip = gpiod_chip_open_by_name(chipname);
@@ -53,7 +54,7 @@ static rpexp_err_t init_swd_gpios(void) {
 }
 
 
-static void inline set_swdio_as_output(bool out) {
+inline void port_set_swdio_as_output(bool out) {
     gpiod_line_release(hswdio);
     if (out) {
         (void) gpiod_line_request_output(hswdio, "swdio", 0);
@@ -63,22 +64,22 @@ static void inline set_swdio_as_output(bool out) {
 }
 
 
-static void inline set_swdio(bool swdio) {
+inline void set_swdio(bool swdio) {
     (void) gpiod_line_set_value(hswdio, swdio);
 }
 
 
-static void inline set_swclk(bool swclk) {
+inline void set_swclk(bool swclk) {
     (void) gpiod_line_set_value(hswclk, swclk);
 }
 
 
-static bool inline get_swdio(void) {
+inline bool get_swdio(void) {
     return gpiod_line_get_value(hswdio);
 }
 
 
-static void inline delay_half_clock(void) {
+inline void delay_half_clock(void) {
     // libgpiod is complicated enough so we don't need any [extra] delay here
 }
 
@@ -87,7 +88,7 @@ static void inline delay_half_clock(void) {
 static struct gpiod_line *hspicsn = NULL;
 static struct gpiod_line *hrxed   = NULL;
 
-static void inline dbg_gpio_init(void) {
+static inline void dbg_gpio_init(void) {
 
     if (!chip) {
         chip = gpiod_chip_open_by_name(chipname);
@@ -113,7 +114,7 @@ static void inline dbg_gpio_init(void) {
 }
 
 
-static void inline dbg_gpio_set(bool pin, bool high) {
+static inline void dbg_gpio_set(bool pin, bool high) {
     struct gpiod_line *hpin = NULL;
 
     if (pin == DBG_GPIO_SPI_CSN) {
@@ -133,32 +134,6 @@ static void inline dbg_gpio_set(bool pin, bool high) {
     }
 }
 #endif  // DEBUG_SWD_ON_GPIOS
-
-//----------------------------------------------------------------------------
-
-static const swdbb_helpers_t swdbb_helpers =
-{
-    .init_swd_gpios      = init_swd_gpios,
-    .set_swdio_as_output = set_swdio_as_output,
-    .set_swdio           = set_swdio,
-    .set_swclk           = set_swclk,
-    .get_swdio           = get_swdio,
-    .delay_half_clock    = delay_half_clock
-
-#ifdef DEBUG_SWD_ON_GPIOS  // debug GPIO helpers
-  , .dbg_gpio_init      = dbg_gpio_init
-  , .dbg_gpio_set       = dbg_gpio_set
-#endif
-};
-
-//----------------------------------------------------------------------------
-
-// Module API
-
-// The function returns the address of the structure with the SWD helper function pointers in it.
-const swdbb_helpers_t *port_get_swdbb_helpers(void) {
-    return &swdbb_helpers;
-}
 
 
 // For a unix host, mock up RP2040 SDK timing function

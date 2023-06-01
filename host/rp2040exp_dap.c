@@ -12,8 +12,8 @@
 
 
 #ifdef DEBUG_SWD_ON_GPIOS
-#define DBG_GPIO_INIT()             swdbb->dbg_gpio_init()
-#define DBG_GPIO_SET(p, s)          swdbb->dbg_gpio_set((p), (s))
+#define DBG_GPIO_INIT()             port_dbg_gpio_init()
+#define DBG_GPIO_SET(p, s)          port_dbg_gpio_set((p), (s))
 #else
 #define DBG_GPIO_INIT()             ((void)(0))
 #define DBG_GPIO_SET(p, s)          ((void)(0))
@@ -46,9 +46,6 @@ typedef struct {
 
 // store a little context to avoid unnecessary transactions
 static dap_reg_cache_t dap_reg_cache;
-
-// pointer to the bit-bashed SWD 'helper functions' function pointers which are per-port.
-static const swdbb_helpers_t *swdbb;
 
 // sequences of bits used to reset and control the SWD at 'line level'
 static const uint8_t bit_seq_reset_to_dormant[] = {
@@ -123,7 +120,7 @@ static const dap_reg_rd_wr_seq_t setup_dap_instance_0[] = {
 static void put_bits(const uint8_t *txb, int n_bits) {
     uint8_t shifter;
 
-    swdbb->set_swdio_as_output(1);
+    port_set_swdio_as_output(1);
 
     for (unsigned int i = 0; i < n_bits; i++) {
         if (i % 8 == 0) {
@@ -132,11 +129,11 @@ static void put_bits(const uint8_t *txb, int n_bits) {
             shifter >>= 1;
         }
 
-        swdbb->set_swdio(shifter & 1u);
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(1);
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(0);
+        port_set_swdio(shifter & 1u);
+        port_delay_half_clock();
+        port_set_swclk(1);
+        port_delay_half_clock();
+        port_set_swclk(0);
     }
 }
 
@@ -144,14 +141,14 @@ static void put_bits(const uint8_t *txb, int n_bits) {
 static void get_bits(uint8_t *rxb, int n_bits) {
     uint8_t shifter;
 
-    swdbb->set_swdio_as_output(0);
+    port_set_swdio_as_output(0);
 
     for (unsigned int i = 0; i < n_bits; i++) {
         DBG_GPIO_SET(DBG_GPIO_RXED, 0);
 
-        swdbb->delay_half_clock();
-        uint8_t sample = swdbb->get_swdio();
-        swdbb->set_swclk(1);
+        port_delay_half_clock();
+        uint8_t sample = port_get_swdio();
+        port_set_swclk(1);
 
         if (sample) {
             DBG_GPIO_SET(DBG_GPIO_RXED, 1);
@@ -159,8 +156,8 @@ static void get_bits(uint8_t *rxb, int n_bits) {
             DBG_GPIO_SET(DBG_GPIO_RXED, 0);
         }
 
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(0);
+        port_delay_half_clock();
+        port_set_swclk(0);
 
         shifter >>= 1;
         if (sample) {
@@ -180,13 +177,13 @@ static void get_bits(uint8_t *rxb, int n_bits) {
 
 static void hiz_clocks(int n_bits) {
 
-    swdbb->set_swdio_as_output(0);
+    port_set_swdio_as_output(0);
 
     for (unsigned int i = 0; i < n_bits; i++) {
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(1);
-        swdbb->delay_half_clock();
-        swdbb->set_swclk(0);
+        port_delay_half_clock();
+        port_set_swclk(1);
+        port_delay_half_clock();
+        port_set_swclk(0);
     }
 }
 
@@ -381,11 +378,9 @@ static rpexp_err_t connect_to_a_dp_instance(uint32_t target_id, uint32_t expecte
 
 rpexp_err_t dap_if_init(void) {
 
-    swdbb = port_get_swdbb_helpers();
+    DBG_GPIO_INIT();
 
-    DBG_GPIO_INIT();  // MUST be after get helpers
-
-    return swdbb->init_swd_gpios();
+    return port_init_swd_gpios();
 }
 
 
