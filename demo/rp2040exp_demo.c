@@ -126,7 +126,7 @@ int main() {
     printf("Driving 7-segment display ...\n");
     s7_led_display_init();
 
-    static const uint8_t led_message[] = {"Raspberry Pi - Pico expander"};
+    static const uint8_t led_message[] = {"Raspberry Pi - RP2040 expander"};
 
     for (int i = 0; ; i++) {
 

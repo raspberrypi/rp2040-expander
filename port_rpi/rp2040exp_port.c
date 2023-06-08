@@ -64,22 +64,22 @@ inline void port_set_swdio_as_output(bool out) {
 }
 
 
-inline void set_swdio(bool swdio) {
+inline void port_set_swdio(bool swdio) {
     (void) gpiod_line_set_value(hswdio, swdio);
 }
 
 
-inline void set_swclk(bool swclk) {
+inline void port_set_swclk(bool swclk) {
     (void) gpiod_line_set_value(hswclk, swclk);
 }
 
 
-inline bool get_swdio(void) {
+inline bool port_get_swdio(void) {
     return gpiod_line_get_value(hswdio);
 }
 
 
-inline void delay_half_clock(void) {
+inline void port_delay_half_clock(void) {
     // libgpiod is complicated enough so we don't need any [extra] delay here
 }
 
@@ -88,7 +88,7 @@ inline void delay_half_clock(void) {
 static struct gpiod_line *hspicsn = NULL;
 static struct gpiod_line *hrxed   = NULL;
 
-static inline void dbg_gpio_init(void) {
+inline void dbg_gpio_init(void) {
 
     if (!chip) {
         chip = gpiod_chip_open_by_name(chipname);
@@ -114,7 +114,7 @@ static inline void dbg_gpio_init(void) {
 }
 
 
-static inline void dbg_gpio_set(bool pin, bool high) {
+inline void dbg_gpio_set(bool pin, bool high) {
     struct gpiod_line *hpin = NULL;
 
     if (pin == DBG_GPIO_SPI_CSN) {
