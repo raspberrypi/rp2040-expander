@@ -413,7 +413,7 @@ static rpexp_err_t read_adc_gpio_voltage(uint32_t channel) {
 
     if (rpexp_err == RPEXP_OK) {
         uint32_t mV = adc_result * 3300ul / 4095ul;
-        printf("ADC reading: %d, voltage (mV): %ld\n", adc_result, mV);
+        printf("ADC reading: %d, voltage (mV): %" PRId32 "\n", adc_result, mV);
     }
 
     return rpexp_err;
