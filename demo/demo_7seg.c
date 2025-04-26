@@ -183,7 +183,7 @@ static void drive_gpio(uint8_t gpio, bool on) {
 }
 
 
-static void max2719_send_u16(uint16_t word) {
+static void max7219_send_u16(uint16_t word) {
 
     drive_gpio(MAX7219_CS, 0);
 
@@ -213,19 +213,19 @@ static void display_init(void) {
     drive_gpio(MAX7219_DAT, 0);
     drive_gpio(MAX7219_CLK, 0);
 
-    max2719_send_u16(MAX7219_NOP           | 0);  // Send NOP, just to pipeclean
-    max2719_send_u16(MAX7219_DISPLAY_TEST  | 0);  // NOT display test
-    max2719_send_u16(MAX7219_DECODE_MODE   | 0);  // RAW segment data
-    max2719_send_u16(MAX7219_SCAN_LIMIT    | (NUM_OF_DIGITS - 1));  // Scan all
-    max2719_send_u16(MAX7219_INTENSITY     | 10); // Intensity 0-15
-    max2719_send_u16(MAX7219_SHUTDOWN_MODE | 1); // NOT shutdown!
+    max7219_send_u16(MAX7219_NOP           | 0);  // Send NOP, just to pipeclean
+    max7219_send_u16(MAX7219_DISPLAY_TEST  | 0);  // NOT display test
+    max7219_send_u16(MAX7219_DECODE_MODE   | 0);  // RAW segment data
+    max7219_send_u16(MAX7219_SCAN_LIMIT    | (NUM_OF_DIGITS - 1));  // Scan all
+    max7219_send_u16(MAX7219_INTENSITY     | 10); // Intensity 0-15
+    max7219_send_u16(MAX7219_SHUTDOWN_MODE | 1); // NOT shutdown!
 }
 
 
 static void display_update(void) {
 
     for (int i = 0; i < NUM_OF_DIGITS; i++) {
-        max2719_send_u16((MAX7219_DIG_0 + (i << MAX7219_CMD_SHIFT)) | (uint16_t)segment_data[i]);
+        max7219_send_u16((MAX7219_DIG_0 + (i << MAX7219_CMD_SHIFT)) | (uint16_t)segment_data[i]);
     }
 }
 
